@@ -1,0 +1,60 @@
+public class TuringServer {
+    private static String defaultConfFile = "./data/turing.conf";
+    private static ConfigurationsManagement configurationsManagement = new ConfigurationsManagement();
+
+    public static void main(String[] args){
+
+        //se il file di configurazioni è inserito al momento dell'esecuzione parso questo
+        if(args.length>0) {
+            System.out.println("[Turing] >> Fase di caricamento delle configurazioni del Server");
+            String confFile = args[0];
+
+            FunctionOutcome parse = configurationsManagement.parseConf(confFile);
+
+            if(parse == FunctionOutcome.FAILURE){
+                System.err.println("[ERR] >> Impossibile caricare le configurazioni del Server");
+                System.exit(-1);
+            }
+        }
+        else { //non  e' stato inserito nessun file di configurazione come argomento => parso quello di default
+            FunctionOutcome parse = configurationsManagement.parseConf(defaultConfFile);
+
+            if(parse == FunctionOutcome.FAILURE){
+                System.err.println("[ERR] >> Impossibile caricare le configurazioni del Server");
+                System.exit(-1);
+            }
+
+            System.out.println("[Turing] >> Il server è stato eseguito con le configurazioni di default");
+            System.out.println("[Turing] >> Se desidi personalizzare le configuarzioni, riesegui il codice inserendo tra gli argomenti il tuo file");
+            System.out.println("[Turing] >> Per maggiori dettagli sul formato delle configurazioni, guardare il file <./data/turing.conf>");
+        }
+
+        //mostro a video le configurazioni con cui è stato eseguito il server Turing
+        configurationsManagement.showConf();
+
+        //alloco le risorse estrappolate dal file di configurazione
+        FunctionOutcome allocate = configurationsManagement.allocateConf();
+
+        if(allocate == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile allocare le risorse di configurazioni del Server");
+            System.exit(-1);
+        }
+
+        //***************************************CREAZIONE LISTENER THREAD*********************************************//
+
+        Listener listener = new Listener();
+        Thread thread = new Thread(listener);
+        thread.start();
+
+        //**********************************ATTENDO TERMINAZIONE LISTENER THREAD**************************************//
+
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println();
+        System.out.println("[Turing] >> Fase di caricamento delle configurazioni del Server");
+    }
+}
