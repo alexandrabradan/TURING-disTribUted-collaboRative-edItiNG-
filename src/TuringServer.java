@@ -1,8 +1,11 @@
 public class TuringServer {
-    private static String defaultConfFile = "./data/turing.conf";
+    private static String defaultConfFile = "/src/data/turing.conf";
     private static ConfigurationsManagement configurationsManagement = new ConfigurationsManagement();
 
     public static void main(String[] args){
+        System.out.println("[Turing] >> SERVER TURING AVVIATO");
+        System.out.println();
+
 
         //se il file di configurazioni è inserito al momento dell'esecuzione parso questo
         if(args.length>0) {
@@ -55,6 +58,6 @@ public class TuringServer {
         }
 
         System.out.println();
-        System.out.println("[Turing] >> Fase di caricamento delle configurazioni del Server");
+        System.out.println("[Turing] >> SERVER TURING TERMINATO");
     }
 }

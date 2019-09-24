@@ -22,6 +22,7 @@ public class ConfigurationsManagement {
     public String clientsDownloadsDocumentsDirectory; //path della directory dove Clients salvano documenti scaricati
 
     private FileManagement fileManagement = new FileManagement();
+    private String currentPath = fileManagement.getCurrentPath();
 
     /**
      * Costruttore della classe ConfigurationsManagement
@@ -47,6 +48,8 @@ public class ConfigurationsManagement {
      *         FAILURE se il file non esiste oppure ci sono stati dei problemi con il parsing/ valori parsati
      */
     public FunctionOutcome parseConf(String confFile){
+
+        confFile = currentPath + confFile;
 
         //verifico se il file passato come paramentro esiste
         boolean exist = this.fileManagement.checkEsistenceFile(confFile);
@@ -101,12 +104,15 @@ public class ConfigurationsManagement {
                            this.numWorkersInThreadPool = Integer.parseInt(value);
                            break;
                        case "serverSaveDocumentsDirectory":
+                           value = currentPath + "/src" + value;
                            this.serverSaveDocumentsDirectory = value;
                            break;
                        case "serverEditDocumentsDirectory":
+                           value = currentPath + "/src" + value;
                            this.serverEditDocumentsDirectory = value;
                            break;
                        case "clientsDownloadsDocumentsDirectory":
+                           value = currentPath + "/src" + value;
                            this.clientsDownloadsDocumentsDirectory = value;
                            break;
                    }
@@ -216,6 +222,7 @@ public class ConfigurationsManagement {
      * Funzione che stampa le variabili di configurazione estrappolate dal file di configurazione
      */
     public void showConf(){
+        System.out.println();
         System.out.println("[Turing] >> Configurazioni con cui si stanno eseguendo il Server:");
         System.out.println("- Nome del Server = " + this.serverHost );
         System.out.println("- Porta di registrazione = " + this.serverPort );
@@ -227,6 +234,7 @@ public class ConfigurationsManagement {
         System.out.println("- Dimensione del ThreadPool = " + this.numWorkersInThreadPool);
         System.out.println("- Directory dove andare a salvare i file = " + this.serverSaveDocumentsDirectory);
         System.out.println("- Directory dove andare a salvare i file da editare = " + this.serverEditDocumentsDirectory);
-        System.out.println("- Directory radice dove andare a salvare i file da scaricare = " + this.clientsDownloadsDocumentsDirectory);
+        System.out.println("- Directory radice dove andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
+        System.out.println();
     }
 }

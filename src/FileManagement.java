@@ -14,7 +14,7 @@ public class FileManagement {
      * Funzione che restituisce il path assoluto della cartella attuale
      * @return path assoluto della cartella corrente
      */
-    public static String getCurrentPath(){
+    public String getCurrentPath(){
         return System.getProperty("user.dir");
     }
 
@@ -33,23 +33,16 @@ public class FileManagement {
 
     public FunctionOutcome checkEsistenceDirectoryOtherwiseCreateIt(String directoryPath){
         Path path = Paths.get(directoryPath);
-        boolean exist = Files.exists(path);
-        boolean isDir = Files.isDirectory(path);
-        if(exist && isDir){
-            return FunctionOutcome.SUCCESS; //la cartella esiste gia' ed il suo path corrisponde ad una directory
-        }
-        else if(!exist && isDir){
-            //la cartella non esiste, la creo
-            return createDirectory(directoryPath);
-        }
-        else if(exist && !isDir){
-            //il path esiste ma non e' associato ad una cartella
-            System.err.println("[ERR] >> Il path <<" + directoryPath + ">> NON e' lecito per creare una cartella");
-            return FunctionOutcome.FAILURE;
-        }
 
-        System.err.println("[ERR] >> Impossibile verificare/creare la cartella <<" + directoryPath + ">>");
-        return FunctionOutcome.FAILURE; //se arrivo qui ci sono stati problemi
+        //verifico esistenza cartella
+        boolean exist = Files.exists(path);
+
+        if(!exist){
+            return  createDirectory(directoryPath); //provo a creare cartella
+        }
+        else{
+            return FunctionOutcome.SUCCESS; //cartella esiste
+        }
     }
 
     /**
