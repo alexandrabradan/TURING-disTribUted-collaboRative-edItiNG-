@@ -34,7 +34,7 @@ public class Listener implements Runnable {
         //3. si fanno terminare tutti gli Workers e il Listener Thread
         //Per fare questo segnalo dico alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
         //di terminare il programma
-        Runtime.getRuntime().addShutdownHook(new ShutDownHook(Thread.currentThread())); //passo come argomento l'ID del Listener
+        Runtime.getRuntime().addShutdownHook(new ShutdownHook(Thread.currentThread())); //passo come argomento l'ID del Listener
 
 
         //*********************************APERTURA SERVERSOCKET E SELECTOR*******************************************//

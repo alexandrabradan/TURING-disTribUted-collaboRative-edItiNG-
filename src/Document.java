@@ -1,7 +1,7 @@
 import java.net.InetAddress;
 import java.util.LinkedHashSet;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.Set
+import java.util.Set;
 
 public class Document {
 

@@ -1,7 +1,7 @@
-public class ShutDownHook extends Thread{
+public class ShutdownHook extends Thread{
     private Thread listenerThreadID;
 
-    public ShutDownHook(Thread listenerThreadID){
+    public ShutdownHook(Thread listenerThreadID){
         this.listenerThreadID = listenerThreadID;
     }
 
