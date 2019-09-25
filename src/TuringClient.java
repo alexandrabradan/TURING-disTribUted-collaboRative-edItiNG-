@@ -1,9 +1,12 @@
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.channels.SocketChannel;
+import java.util.concurrent.TimeoutException;
 
 public class TuringClient {
     private static ConfigurationsManagement configurationsManagement = new ConfigurationsManagement();
-    private static Socket client = new Socket();
+    private static Socket clientSocket;
     private static InetSocketAddress serverAddress;
 
     /**
@@ -77,11 +80,29 @@ public class TuringClient {
             return FunctionOutcome.FAILURE;
         }
 
+        //provo a creare client-socket
+        clientSocket = new Socket();
+
         //dal file di configurazione ho ricavato il serverHost e la serverPort => creo indirizzo al quale Client
         //si puo' connettere
         serverAddress = new InetSocketAddress(configurationsManagement.serverHost, configurationsManagement.serverPort);
 
-        return FunctionOutcome.SUCCESS;
+        try{
+            //dal file di configurazione ho ricavato il TIMEOUT della connessione (tempo massimo attesa cliet prima
+            //di affermare di non potersi connettere al Server)
+            //provo a connettermi al Server
+            clientSocket.connect(serverAddress, configurationsManagement.connectionTimeout);
+
+            // This stops the request from dragging on after connection succeeds
+            //clientSocket.setSoTimeout(configurationsManagement.connectionTimeout);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.err.println("[ERR] >> Impossibile aprire client-socket");
+            return FunctionOutcome.FAILURE;
+        }
+
+        return FunctionOutcome.SUCCESS; //connessione al Server avvenuta con successo
     }
 
     private static void requestsAndResponsesHandle(){

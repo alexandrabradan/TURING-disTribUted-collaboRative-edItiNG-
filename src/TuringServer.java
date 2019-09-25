@@ -54,6 +54,7 @@ public class TuringServer {
         try {
             thread.join();
         } catch (InterruptedException e) {
+            System.out.println("[Turing] >> Listener Thread terminato");
             e.printStackTrace();
         }
 
