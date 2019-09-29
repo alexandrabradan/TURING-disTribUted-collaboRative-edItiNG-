@@ -7,19 +7,22 @@ import java.util.List;
 
 public class ConfigurationsManagement {
 
-    //variabili di configurazione sono PUBBLICHE per renderle accessibili dalla classe TuringClient e TuringServer
+    //variabili di configurazione sono PUBBLICHE per renderle accessibili alle classi:
+    // 1. TuringClient
+    // 2. TuringServer
+    // 3. CommandLineManagement
 
-    public String serverHost; //DNS name server
-    public int serverPort; //porta su cui Server e' in ascolto
-    public int RMIPort; //porta utilizzata per gli inviti
-    public int multicastPort; //porta utilizzata per i gruppi di chat
-    public int connectionTimeout; //tempo attesa Client prima di affermare di non potersi connettere al Server
-    public int maxNumSectionsPerDocument; //numero massimo di sezioni che un documento puo' avere
-    public int maxNumCharactersArg; //numero massimo di caratteri che username/password/nome_documento possono avere
-    public int numWorkersInThreadPool; //numero di threads nel ThreadPool
-    public String serverSaveDocumentsDirectory; //path della directory dove Server salva documenti dei Clients
-    public String serverEditDocumentsDirectory; //path della directory dove Server salva documenti da editare dei Clients
-    public String clientsDownloadsDocumentsDirectory; //path della directory dove Clients salvano documenti scaricati
+    private String serverHost; //DNS name server
+    private int serverPort; //porta su cui Server e' in ascolto
+    private int RMIPort; //porta utilizzata per gli inviti
+    private int multicastPort; //porta utilizzata per i gruppi di chat
+    private int connectionTimeout; //tempo attesa Client prima di affermare di non potersi connettere al Server
+    private int maxNumSectionsPerDocument; //numero massimo di sezioni che un documento puo' avere
+    private int maxNumCharactersArg; //numero massimo di caratteri che username/password/nome_documento possono avere
+    private int numWorkersInThreadPool; //numero di threads nel ThreadPool
+    private String serverSaveDocumentsDirectory; //path della directory dove Server salva documenti dei Clients
+    private String serverEditDocumentsDirectory; //path della directory dove Server salva documenti da editare dei Clients
+    private String clientsDownloadsDocumentsDirectory; //path della directory dove Clients salvano documenti scaricati
 
     private FileManagement fileManagement = new FileManagement();
     private String currentPath = fileManagement.getCurrentPath();
@@ -39,6 +42,94 @@ public class ConfigurationsManagement {
         this.serverSaveDocumentsDirectory = "";
         this.serverEditDocumentsDirectory = "";
         this.clientsDownloadsDocumentsDirectory = "";
+    }
+
+    /**
+     * Funzione che resttuisce il DNS Name Server
+     * @return DNS Name Server
+     */
+    public String getServerHost(){
+        return this.serverHost;
+    }
+
+    /**
+     * Funzione che restituisce la porta su cui Server e' in ascolto
+     * @return porta su cui Server e' in ascolto
+     */
+    public int getServerPort(){
+        return this.serverPort;
+    }
+
+    /**
+     * Funzione che restituisce la
+     * @return porta utilizzata per gli inviti
+     */
+    public int getRMIPort(){
+        return this.RMIPort;
+    }
+
+    /**
+     * Funzione che restituisce la porta utilizzata per i gruppi di chat
+     * @return porta utilizzata per i gruppi di chat
+     */
+    public int getMulticastPort(){
+        return this.multicastPort;
+    }
+
+    /**
+     * Funzione che restituisce tempo attesa Client prima di affermare di non potersi connettere al Server
+     * @return tempo attesa Client prima di affermare di non potersi connettere al Server
+     */
+    public int getConnectionTimeout(){
+        return this.connectionTimeout;
+    }
+
+    /**
+     * Funzione che restituisce numero massimo di sezioni che un documento puo' avere
+     * @return numero massimo di sezioni che un documento puo' avere
+     */
+    public int getMaxNumSectionsPerDocument(){
+        return this.maxNumSectionsPerDocument;
+    }
+
+    /**
+     * Funzione che restiruisce numero massimo di caratteri che username/password/nome_documento possono avere
+     * @return numero massimo di caratteri che username/password/nome_documento possono avere
+     */
+    public int getMaxNumCharactersArg(){
+        return this.maxNumCharactersArg;
+    }
+
+    /**
+     * Funzione che restituisce numero di threads nel ThreadPool
+     * @return numero di threads nel ThreadPool
+     */
+    public int getNumWorkersInThreadPool(){
+        return this.numWorkersInThreadPool;
+    }
+
+    /**
+     * Funzione che restituisce path della directory dove Server salva documenti dei Clients
+     * @return path della directory dove Server salva documenti dei Clients
+     */
+    public String getServerSaveDocumentsDirectory(){
+        return this.serverSaveDocumentsDirectory;
+    }
+
+    /**
+     * Funzione che restituisce path della directory dove Server salva documenti da editare dei Clients
+     * @return path della directory dove Server salva documenti da editare dei Clients
+     */
+    public String getServerEditDocumentsDirectory(){
+        return this.serverEditDocumentsDirectory;
+    }
+
+    /**
+     * Funzione che restituisce path della directory dove Clients salvano documenti scaricati
+     * @return path della directory dove Clients salvano documenti scaricati
+     */
+    public String getClientsDownloadsDocumentsDirectory(){
+        return this.clientsDownloadsDocumentsDirectory;
     }
 
     /**

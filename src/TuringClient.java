@@ -1,13 +1,16 @@
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.TimeoutException;
 
 public class TuringClient {
+    //istanza classe che si occupa del file di configurazione e delle variabili di configurazione
     private static ConfigurationsManagement configurationsManagement = new ConfigurationsManagement();
-    private static Socket clientSocket;
-    private static InetSocketAddress serverAddress;
+    private static SocketChannel clientSocket;      //client-socket
+    private static String serverHost;
+    private static int serverPort;
+    private static InetSocketAddress serverAddress;  //indirizzo e porta del Server a cui connettersi
 
     /**
      * Ciclo principale che si occupa di:
@@ -18,94 +21,152 @@ public class TuringClient {
      * @param args file di configurazione da parsare
      */
     public static void main(String[] args){
+
         System.out.println("--- Benvenuto in TURING (disTribUted collaboRative edItiNG) ---");
         System.out.println();
+
+        //creo client-socket
+        clientSocket = createClientSocket();
+
+        if(clientSocket == null){
+            System.err.println("[ERR] >> Impossibile creare client-socket");
+            System.exit(-1);
+        }
 
         //connetto Client al Server
         FunctionOutcome connect = connectToServer();
 
         if(connect == FunctionOutcome.FAILURE){
             System.err.println("[ERR] >> Impossibile connettersi al Server");
-            System.exit(0); //non segnalo errore perche' non e' un errore interno
+            System.exit(-1);
         }
 
+        System.out.println("[Turing] >> Connessione avvenuta con successo");
+        System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
+        System.out.println("[Turing] >> turing --help");
+        System.out.println("[Turing] >> Digita nuovo comando:");
+
         //connessione avvenuta con successo => posso iniziare a:
-        //1. leggere comandi da linea di comando
+        //1. leggere comandi da tastiera
         //2. inviare richieste al Server
         //3. attendere risposte dal Server
-        requestsAndResponsesHandle();
+        startLoopRequestsAndResponses();
     }
-
-    /**
-     * Funzione che stampa un messaggio di aiuto qualora il Client lo richieda tramite il comando:
-     * >> usage turing
-     *
-     */
-    private static void printHelp() {
-        System.out.println("usage: turing COMMAND [ARGS...]");
-        System.out.println();
-        System.out.println("COMMANDS: ");
-        System.out.println("	register <username> <password> | Registra l'user");
-        System.out.println("	login <username> <password>    | Connette l'user");
-        System.out.println("	logout                         | Disconnette l'user");
-        System.out.println();
-        System.out.println("	create <doc> <numsezioni>      | Crea un documento");
-        System.out.println("	share <doc> <username>         | Condivide un documento");
-        System.out.println("	show <doc> <sec>               | Mostra una sezione del documento");
-        System.out.println("	show <doc>                     | Mostra l'intero documento");
-        System.out.println("	list                           | Mostra la lista dei documenti");
-        System.out.println();
-        System.out.println("	edit <doc> <sec>               | Modifica una sezione del documento");
-        System.out.println("	end-edit					   | Fine modifica della sezione del documento");
-        System.out.println();
-        System.out.println("	send <msg>                     | Invia un messaggio sulla chat");
-        System.out.println("	receive                        | Visualizza i messaggi ricevuti sulla chat");
-    }
-
 
     /**
      * Funzione che crea il client-socket e che tenta di stabilire una connessione con il Server
-     * @return SUCCESS se la connessione con il Server ha avuto successo
-     *         FAILURE se non e' stato possibile stabilire la connessione con il Server:
-     *                 - Server inattivo
-     *                 - scadenza TIMEOUT
+     * @return SocketChannel client-socket che client utilizzera' per connettersi al Server
      */
-    private static FunctionOutcome connectToServer(){
+    private static SocketChannel createClientSocket(){
 
         //verifico che il Server abbia fatto il parsing del file di configurazione
         FunctionOutcome check = configurationsManagement.checkConf();
 
         if(check == FunctionOutcome.FAILURE){
             System.err.println("[ERR] >> File di configurazione non trovato oppure configurazioni mancanti");
-            return FunctionOutcome.FAILURE;
+            System.err.println("[ERR] >> Impossibile connettersi al Server");
+            System.exit(-1);
         }
 
-        //provo a creare client-socket
-        clientSocket = new Socket();
+        SocketChannel client;
+        try {
+            client = SocketChannel.open();
 
-        //dal file di configurazione ho ricavato il serverHost e la serverPort => creo indirizzo al quale Client
-        //si puo' connettere
-        serverAddress = new InetSocketAddress(configurationsManagement.serverHost, configurationsManagement.serverPort);
+            return client;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+        return null; //ritorno un client-socket vuoto (situazione che non si verifica per try-catch soprastante)
+    }
+
+
+    private static FunctionOutcome connectToServer() {
+
+        //dal file di configurazione ricavo il serverHost e la serverPort
+        serverHost = configurationsManagement.getServerHost();
+        serverPort = configurationsManagement.getServerPort();
+       //creo indirizzo al quale Client si puo' connettere
+        serverAddress = new InetSocketAddress(serverHost, serverPort);
 
         try{
-            //dal file di configurazione ho ricavato il TIMEOUT della connessione (tempo massimo attesa cliet prima
-            //di affermare di non potersi connettere al Server)
             //provo a connettermi al Server
-            clientSocket.connect(serverAddress, configurationsManagement.connectionTimeout);
+            //dal file di configurazione ho ricavato il TIMEOUT della connessione (tempo massimo attesa Client prima
+            //di affermare di non potersi connettere al Server)
+            int connectionTimeout = configurationsManagement.getConnectionTimeout();
+            clientSocket.socket().connect(serverAddress, connectionTimeout);
 
-            // This stops the request from dragging on after connection succeeds
-            //clientSocket.setSoTimeout(configurationsManagement.connectionTimeout);
+
+            while (!clientSocket.finishConnect()) {
+                System.out.println("[CLIENT] >> Mi sto connettendo ...");
+            }
+
+            return FunctionOutcome.SUCCESS;
 
         } catch (IOException e) {
             e.printStackTrace();
             System.err.println("[ERR] >> Impossibile aprire client-socket");
             return FunctionOutcome.FAILURE;
         }
-
-        return FunctionOutcome.SUCCESS; //connessione al Server avvenuta con successo
     }
 
-    private static void requestsAndResponsesHandle(){
+    /**
+     * Funzione che si occupa di:
+     *1. leggere comandi da tastiera
+     *2. inviare richieste al Server
+     *3. attendere risposte dal Server
+     * per tutta la durata del ciclo di vita del Client
+     */
+    private static void startLoopRequestsAndResponses(){
+
+        while (true) {
+            //leggo commando da tastiera
+            CommandLineManagement commandLineManagement = new CommandLineManagement();
+            FunctionOutcome check = commandLineManagement.readAndParseCommand();
+
+            if(check == FunctionOutcome.SUCCESS){ //commando sintatticamente corretto
+
+                //discrimino se Client ha richiesto comando di aiuto (gia' gestito da CommandLineManagement);
+                if(commandLineManagement.getCurrentCommand() == CommandType.HELP){
+                    System.out.println();
+                    System.out.println("[Turing] >> Digita nuovo comando:");
+                    continue; //digito comando successivo
+                }
+
+                //recupero comando corrente ed eventuali argomenti
+                CommandType currentCommand = commandLineManagement.getCurrentCommand();
+                String currentArg1 = commandLineManagement.getCurrentArg1();
+                String currentArg2 = commandLineManagement.getCurrentArg2();
+
+                //invio richiesta al Server
+                check = writeRequest(currentCommand, currentArg1, currentArg2);
+
+                if(check == FunctionOutcome.FAILURE){
+                    continue; //digito comando successivo
+                }
+
+                //attendo risposta dal Server
+                check = readResponse();
+
+                if(check == FunctionOutcome.FAILURE){
+                    continue; //digito comando successivo
+                }
+            }
+        }
+    }
+
+    private static FunctionOutcome writeRequest(CommandType command, String arg1, String arg2){
+
+        //creo messaggio di richiesta
+
+        //invio richiesta al Server
+        return FunctionOutcome.SUCCESS;
+    }
+
+    private static FunctionOutcome readResponse(){
+        //invio richiesta al Server
+        return FunctionOutcome.SUCCESS;
 
     }
 }
