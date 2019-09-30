@@ -1,4 +1,4 @@
-public enum ServerResponse {
+public enum ServerResponse{
     OP_USER_NOT_ONLINE,
     OP_USER_NOT_REGISTERED,
     OP_DOCUMENT_NOT_EXIST,
