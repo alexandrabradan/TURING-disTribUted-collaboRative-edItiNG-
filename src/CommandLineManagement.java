@@ -105,6 +105,7 @@ public class CommandLineManagement {
         System.out.println();
         System.out.println("	send <msg>                     | Invia un messaggio sulla chat");
         System.out.println("	receive                        | Visualizza i messaggi ricevuti sulla chat");
+        System.out.println("	exit                           | Termina l'user");
     }
 
     /**
@@ -234,6 +235,11 @@ public class CommandLineManagement {
                                 String correctCommandToPrint = "receive";
                                 return checkEmptyARGRequest(commandWords, correctCommandToPrint, CommandType.RECEIVE);
                             }
+                            case "exit":{
+                                //verifico se dopo l' exit ci sono ancora parole
+                                String correctCommandToPrint = "exit";
+                                return checkEmptyARGRequest(commandWords, correctCommandToPrint, CommandType.EXIT);
+                            }
                             default:
                                 System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
                                 System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
@@ -261,7 +267,8 @@ public class CommandLineManagement {
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkMaxNumCharactersArg(String argument){
-        if(argument.length() > this.configurationsManagement.maxNumCharactersArg)
+        int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
+        if(argument.length() > maxNumCharactersArg)
             return FunctionOutcome.FAILURE;  //argomento supera num. caratteri consentito
         else
             return FunctionOutcome.SUCCESS;  //argomento non supera num.caratteri consentito
@@ -275,7 +282,8 @@ public class CommandLineManagement {
      *         FAILURE altrimenti
      */
     private  FunctionOutcome checkMaxNumSectionsPerDocument(int numSections){
-        if(numSections > this.configurationsManagement.maxNumSectionsPerDocument)
+        int maxNumSectionsPerDocument = this.configurationsManagement.getMaxNumSectionsPerDocument();
+        if(numSections > maxNumSectionsPerDocument)
             return FunctionOutcome.FAILURE;  //numero sezioni supera valore consentito
         else
             return FunctionOutcome.SUCCESS;  //numero sezioni non supera valore consentito
@@ -296,13 +304,15 @@ public class CommandLineManagement {
         FunctionOutcome check2 = checkMaxNumCharactersArg(arg2);
         if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
             if(check1 == FunctionOutcome.FAILURE){
+                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
                 System.err.println("[Turing] >> %s supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        arg1 + configurationsManagement.maxNumCharactersArg);
+                        arg1 + maxNumCharactersArg);
             }
 
             if(check2 == FunctionOutcome.FAILURE){
+                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
                 System.err.println("[Turing] >> %s supera i caratteri consentiti. Il valore deve esse <= %d" +
-                       arg2 +  configurationsManagement.maxNumCharactersArg);
+                       arg2 +  maxNumCharactersArg);
             }
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
             return readAndParseCommand();
@@ -330,13 +340,15 @@ public class CommandLineManagement {
         FunctionOutcome check2 = checkMaxNumSectionsPerDocument(Integer.parseInt(arg2));
         if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
             if(check1 == FunctionOutcome.FAILURE){
+                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
                 System.err.println("[Turing] >> %s supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        arg1 + configurationsManagement.maxNumCharactersArg);
+                        arg1 + maxNumCharactersArg);
             }
 
             if(check2 == FunctionOutcome.FAILURE){
+                int maxNumSectionsPerDocument = this.configurationsManagement.getMaxNumSectionsPerDocument();
                 System.err.println("[Turing] >> %d supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        Integer.parseInt(arg2) +  configurationsManagement.maxNumCharactersArg);
+                        Integer.parseInt(arg2) +  maxNumSectionsPerDocument);
             }
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
             return readAndParseCommand();
@@ -355,6 +367,7 @@ public class CommandLineManagement {
      * 2. turing logout
      * 3. turing list
      * 4. turing receive
+     * 5. turing exit
      * non abbiano parole/argomenti a seguirli
      * @param commandWords parole lette da linea di commando
      * @param correctCommandToPrint messaggio personalizzato da stampare sullo schermo
@@ -396,8 +409,9 @@ public class CommandLineManagement {
             //verifico che nome documento / msg non superino il num. caratteri del file di configurazione
             FunctionOutcome check = checkMaxNumCharactersArg(commandWords[2]);
             if(check == FunctionOutcome.FAILURE){
+                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
                 System.err.println("[Turing] >> %d supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        commandWords[2] +  configurationsManagement.maxNumCharactersArg);
+                        commandWords[2] +  maxNumCharactersArg);
                 System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
                 return readAndParseCommand();
             }

@@ -11,5 +11,6 @@ public enum CommandType {
     EDIT,
     END_EDIT,
     SEND,
-    RECEIVE
+    RECEIVE,
+    EXIT
 }

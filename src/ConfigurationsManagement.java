@@ -258,6 +258,10 @@ public class ConfigurationsManagement {
             System.err.println("[ERR] >> maxNumCharactersArg = " + this.maxNumCharactersArg + " non valido");
             return FunctionOutcome.FAILURE;
         }
+        else if(this.numWorkersInThreadPool < 0){
+            System.err.println("[ERR] >> numWorkersInThreadPool = " + this.numWorkersInThreadPool + " non valido");
+            return FunctionOutcome.FAILURE;
+        }
         else if(this.serverSaveDocumentsDirectory.isEmpty()){
             System.err.println("[ERR] >> serverSaveDocumentsDirectory non inizializzao ");
             return FunctionOutcome.FAILURE;
