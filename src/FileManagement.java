@@ -127,9 +127,12 @@ public class FileManagement {
         boolean exist = checkEsistenceDirectory(directoryPath);
 
         if(exist){
-            Path path = Paths.get(directoryPath);
+            Path pathToBeDeleted = Paths.get(directoryPath);
             try {
-                List<String> filesList = Files.walk(path).filter(Files::isRegularFile)
+
+
+                List<String> filesList = Files.walk(pathToBeDeleted).filter(Files::isRegularFile)
+                        .filter(path -> !path.equals(pathToBeDeleted))
                         .map(Path::toString).collect(Collectors.toList());
 
                 filesList.forEach(this::deleteFile);
