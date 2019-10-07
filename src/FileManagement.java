@@ -130,7 +130,6 @@ public class FileManagement {
             Path pathToBeDeleted = Paths.get(directoryPath);
             try {
 
-
                 List<String> filesList = Files.walk(pathToBeDeleted).filter(Files::isRegularFile)
                         .filter(path -> !path.equals(pathToBeDeleted))
                         .map(Path::toString).collect(Collectors.toList());
