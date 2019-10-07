@@ -1,16 +1,14 @@
-import javax.print.DocFlavor;
+import org.jetbrains.annotations.NotNull;
+
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
 
 public class TuringClient {
-    //istanza classe che si occupa del file di configurazione e delle variabili di configurazione
-    private static ConfigurationsManagement configurationsManagement = new ConfigurationsManagement();
+    private static String defaultConfFile = "/src/data/turingClient.conf";
+    private static ClientConfigurationManagement configurationsManagement = new ClientConfigurationManagement();
     private static RMIRegistrationHandler rmiRegistrationHandler = new RMIRegistrationHandler();
     private static MulticastChatHandler multicastChatHandler = new MulticastChatHandler();
     private static SocketChannel clientSocket = null;      //client-socket
@@ -31,6 +29,45 @@ public class TuringClient {
         System.out.println("--- Benvenuto in TURING (disTribUted collaboRative edItiNG) ---");
         System.out.println();
 
+        //se il file di configurazioni è inserito al momento dell'esecuzione prendo questo
+        if(args.length>0) {
+            System.out.println("[Turing] >> Fase di caricamento delle configurazioni del Client");
+            String confFile = args[0];
+
+            FunctionOutcome parse = configurationsManagement.parseConf(confFile);
+
+            if(parse == FunctionOutcome.FAILURE){
+                System.err.println("[ERR] >> Impossibile caricare le configurazioni del Client");
+                System.exit(-1);
+            }
+        }
+        else { //non  e' stato inserito nessun file di configurazione come argomento => parso quello di default
+            FunctionOutcome parse = configurationsManagement.parseConf(defaultConfFile);
+
+            if(parse == FunctionOutcome.FAILURE){
+                System.err.println("[ERR] >> Impossibile caricare le configurazioni del Client");
+                System.exit(-1);
+            }
+
+            System.out.println("[Turing] >> Il client è stato eseguito con le configurazioni di default");
+            System.out.println("[Turing] >> Se desidi personalizzare le configuarzioni, riesegui il codice inserendo tra gli argomenti il tuo file");
+            System.out.println("[Turing] >> Per maggiori dettagli sul formato delle configurazioni, guardare il file <./data/turingClient.conf>");
+        }
+
+        //mostro a video le configurazioni con cui è stato eseguito il client Turing
+        configurationsManagement.showConf();
+
+        //alloco le risorse estrappolate dal file di configurazione
+        FunctionOutcome allocate = configurationsManagement.allocateConf();
+
+        if(allocate == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile allocare le risorse di configurazioni del Client");
+            System.exit(-1);
+        }
+
+        System.out.println("[Turing] >> Caricamento delle configurazioni avvenuto con successo");
+
+        //configurazioni settate correttamente
         //creo client-socket
         clientSocket = createClientSocket();
 
@@ -38,6 +75,8 @@ public class TuringClient {
             System.err.println("[ERR] >> Impossibile creare client-socket");
             System.exit(-1); //termino programma con errore
         }
+
+        System.out.println("[Turing] >> Client-socket creato con successo");
 
         //connetto Client al Server
         FunctionOutcome connect = connectToServer();
@@ -47,7 +86,7 @@ public class TuringClient {
             closeClientSocket(); //chiudo client-socket e programma
         }
 
-        System.out.println("[Turing] >> Connessione avvenuta con successo");
+        System.out.println("[Turing] >> Connessione al Server avvenuta con successo");
         System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
         System.out.println("[Turing] >> turing --help");
 
@@ -55,6 +94,7 @@ public class TuringClient {
         //1. leggere comandi da tastiera
         //2. inviare richieste al Server
         //3. attendere risposte dal Server
+        System.out.println("[Turing] >> Digita nuovo comando:");
         startLoopRequestsAndResponses();
     }
 
@@ -65,14 +105,7 @@ public class TuringClient {
      */
     private static SocketChannel createClientSocket(){
 
-        //verifico che il Server abbia fatto il parsing del file di configurazione
-        FunctionOutcome check = configurationsManagement.checkConf();
-
-        if(check == FunctionOutcome.FAILURE){
-            System.err.println("[ERR] >> File di configurazione non trovato oppure configurazioni mancanti");
-            System.err.println("[ERR] >> Impossibile connettersi al Server");
-            System.exit(-1); //termino programma con errore
-        }
+        System.out.println("[Turing] >> Fase di creazione del client-socket");
 
         SocketChannel client;
         try {
@@ -130,10 +163,8 @@ public class TuringClient {
 
         while (true) {
 
-            System.out.println("[Turing] >> Digita nuovo comando:");
-
             //leggo commando da tastiera
-            CommandLineManagement commandLineManagement = new CommandLineManagement();
+            ClientCommandLineManagement commandLineManagement = new ClientCommandLineManagement();
             FunctionOutcome check = commandLineManagement.readAndParseCommand();
 
             if(check == FunctionOutcome.SUCCESS){ //commando sintatticamente corretto
@@ -141,7 +172,7 @@ public class TuringClient {
                 CommandType currentCommand = commandLineManagement.getCurrentCommand();
                 switch(currentCommand){
                     case HELP:{
-                        System.out.println();
+                        System.out.println();  //spazio dopo aver stampato comando di aiuto
                         System.out.println("[Turing] >> Digita nuovo comando:");
                         continue; //digito comando successivo
                     }
@@ -176,7 +207,7 @@ public class TuringClient {
 
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing >> Impossibile sottomettere la richiesta al Server]");
-                            continue; //digito comando successivo
+                           System.exit(-1);
                         }
 
                         //attendo risposta dal Server
@@ -184,6 +215,7 @@ public class TuringClient {
 
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing >> Impossibile reperire la risposta del Server]");
+                            System.exit(-1);
                         }
                 }
             }
@@ -309,31 +341,103 @@ public class TuringClient {
         // verifico che cosa mi ha risposto il Server  ed in base a cio', stampo un messaggio di esito
         ServerResponse serverResponse = ServerResponse.valueOf(respone);  //converto stringa in enum
         switch (serverResponse){
-            case OP_USER_NOT_ONLINE:{}
-            case OP_USER_NOT_REGISTERED:{}
-            case OP_DOCUMENT_NOT_EXIST:{}
-            case OP_SECTION_NOT_EXIST:{}
-            case OP_REGISTER_OK:{}
-            case OP_REGISTER_USERNAME_ALREADY_TAKEN:{}
-            case OP_REGISTER_USER_ALREADY_ONLINE:{}
-            case OP_LOGIN_OK:{}
-            case OP_LOGIN_USER_ALREADY_ONLINE:{}
-            case OP_LOGOUT_OK:{}
-            case OP_CREATE_OK:{}
-            case OP_CREATE_DOCUMENT_ALREADY_EXIST:{}
-            case OP_SHARE_OK:{}
-            case OP_USER_NOT_CREATOR:{}
-            case OP_SHARE_USER_IS_DEST:{}
-            case OP_DEST_ALREADY_CONTRIBUTOR:{}
-            case OP_SHARE_DEST_NOT_REGISTERED:{}
-            case OP_SHOW_DOCUMENT_OK:{}
-            case OP_SHOW_SECTION_OK:{}
-            case OP_LIST_OK:{}
-            case OP_EDIT_OK:{}
-            case OP_EDIT_MULTICAST_ADDRESS:{}
-            case OP_END_EDIT_OK:{}
-            case OP_SEND_OK:{}
-            case OP_RECEIVE_OK:{}
+            case OP_OK:{  //discrimino quale operazione ha avuto successo
+                switch (command){
+                    case REGISTER: {
+                        System.out.println(String.format("[Turing] >> Registrazione dell'utente |%s| avvenuta con " +
+                                                                                                    "successo", arg1));
+                    }
+                    case LOGIN:{
+                        System.out.println("[Turing] >> Login avvenuto con successo");
+                    }
+                    case LOGOUT:{
+                        System.out.println(String.format("[Turing] >> Logout dell'utente |%s| avvenuto con " +
+                                                                                                    "successo", arg1));
+                    }
+                    case CREATE:{
+                        System.out.println(String.format("[Turing] >> Creazione del documento |%s| con |%s| sezioni" +
+                                                                                " avvenuta con successo", arg1, arg2));
+                    }
+                    case SHARE:{
+                        System.out.println(String.format("[Turing] >> Condivisione del documento |%s| con l'utente " +
+                                                                            "|%s| avvenuto con successo", arg1, arg2));
+                    }
+                    case SHOW_DOCUMENT:{
+                        System.out.println(String.format("[Turing] >> Contenuto del documento |%s|:", arg1));
+                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
+                    }
+                    case SHOW_SECTION:{
+                        System.out.println(String.format("[Turing] >> Contenuto della sezione |%s| del documento" +
+                                                                                                " |%s|:", arg2, arg1));
+                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
+                    }
+                    case LIST:{
+                        System.out.println("[Turing] >> Recap tuoi documenti");
+                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
+                    }
+                    case EDIT:{
+                        System.out.println(String.format("[Turing] >> Inizio modifica della sezione |%s| del" +
+                                                                                        " documento |%s|", arg2, arg1));
+                    }
+                    case END_EDIT:{
+                        System.out.println(String.format("[Turing] >> Fine modifica della sezione |%s| del" +
+                                                                                        " documento |%s|", arg2, arg1));
+                    }
+                    case SEND:{
+                        System.out.println("[Turing] >> Invio messaggio sulla Chat avvenuto corretamente");
+                    }
+                    case RECEIVE:{
+                        System.out.println("[Turing] >> Hai un nuovo messaggio sulla Chat");
+                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
+                    }
+                }
+            }
+            case OP_USER_NOT_ONLINE:{
+                System.err.println(String.format("[ERR] >> Utente |%s| NON connesso.", arg1));
+            }
+            case OP_USER_NOT_REGISTERED:{
+                System.err.println(String.format("[ERR] >> Utente |%s| NON registrato.", arg1));
+            }
+            case OP_DOCUMENT_NOT_EXIST:{
+                System.err.println(String.format("[ERR] >> Documento |%s| NON esistente.", arg1));
+            }
+            case OP_SECTION_NOT_EXIST:{
+                System.err.println(String.format("[ERR] >> Sezione |%s| del documento |%s| NON " +
+                                                                                            "registrato.", arg2, arg1));
+            }
+            case OP_USERNAME_ALREADY_TAKEN:{
+                System.err.println(String.format("[ERR] >> Username |%s| GIA' in uso.", arg1));
+            }
+            case OP_USER_MUST_LOGOUT:{
+                System.err.println("[ERR] >> Devi prima fare il logout per poterti registrate con un altro account.");
+            }
+            case OP_USER_ALREADY_ONLINE:{
+                System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", arg1));
+            }
+            case OP_USERNAME_INCORRECT:{
+                System.err.println(String.format("[ERR] >> Username |%s| ERRATO.", arg1));
+            }
+            case OP_PASSWORD_INCORRECT:{
+                System.err.println(String.format("[ERR] >> Password |%s| ERRATO.", arg2));
+            }
+            case OP_DOCUMENT_ALREADY_EXIST:{
+                System.err.println(String.format("[ERR] >> Documento |%s| GIA' esistente.", arg1));
+            }
+            case OP_USER_NOT_CREATOR:{
+                System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
+                                            " documento |%s|. Per farlo devi essere il suo creatore.", arg2, arg1));
+            }
+            case OP_USER_IS_DEST:{
+                System.err.println(String.format("[ERR] >> Non puoi invitare te stesso a collaborare al documento |%s|.", arg1));
+            }
+            case OP_DEST_ALREADY_CONTRIBUTOR:{
+                System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
+                        " documento |%s|, perche' e' gia' collaboratore / collaboratore.", arg2, arg1)); //@TODO VERIFICARE CHE SIA COLLABORATORE
+            }
+            case OP_DEST_NOT_REGISTERED:{
+                System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
+                        " documento |%s|. L'utente NON e' registrato alla nostra piattaforma.", arg2, arg1));
+            }
             default:
                 //return FunctionOutcome.FAILURE;
         }

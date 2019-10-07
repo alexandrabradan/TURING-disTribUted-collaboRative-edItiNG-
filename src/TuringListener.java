@@ -10,15 +10,16 @@ import java.util.Calendar;
 import java.util.Iterator;
 import java.util.Set;
 
-public class Listener implements Runnable {
+public class TuringListener implements Runnable {
     private SocketAddress address;
-    private ConfigurationsManagement configurationsManagement;
-    private DataStructuresManagement dataStructuresManagement;
+    private ServerConfigurationsManagement configurationsManagement;
+    private ServerDataStructures serverDataStructures;
 
-    public Listener(){
-        this.configurationsManagement = new ConfigurationsManagement();
-        this.address = new InetSocketAddress(this.configurationsManagement.serverHost, this.configurationsManagement.serverPort);
-        this.dataStructuresManagement = new DataStructuresManagement();
+    public TuringListener(){
+        this.configurationsManagement = new ServerConfigurationsManagement();
+        this.address = new InetSocketAddress(this.configurationsManagement.getServerHost(),
+                                                                        this.configurationsManagement.getServerPort());
+        this.serverDataStructures = new ServerDataStructures();
     }
 
     public void run() {
@@ -26,13 +27,13 @@ public class Listener implements Runnable {
         //*************************************CREAZIONE THREADPOOL***************************************************//
 
 
-        //*************************************CREAZIONE SHUTDOWNHOOK***************************************************//
+        //*************************************CREAZIONE SHUTDOWNHOOK*************************************************//
 
         //In concomitanza dei segnali ( SIGINT) || (SIGQUIT) || (SIGTERM) si effettuare GRACEFUL SHUTDOWN del Server, ossia:
         //1. si soddisfanno tutte le richieste pendenti dei clients (rifiutando le nuove)
         //2. si liberano le risorse allocate
         //3. si fanno terminare tutti gli Workers e il Listener Thread
-        //Per fare questo segnalo dico alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
+        //Per fare questo segnalo alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
         //di terminare il programma
         Runtime.getRuntime().addShutdownHook(new ShutdownHook(Thread.currentThread())); //passo come argomento l'ID del Listener
 
@@ -51,7 +52,8 @@ public class Listener implements Runnable {
 
             //apro seletttore
             Selector selector = Selector.open();
-            SelectionKey serverSelectionKey = server.register(selector, SelectionKey.OP_ACCEPT); //registro ServerSocket al selettore
+            //registro ServerSocket al selettore
+            SelectionKey serverSelectionKey = server.register(selector, SelectionKey.OP_ACCEPT);
 
             //*****************************************CICLO DI ASCOLTO**********************************************//
 

@@ -5,32 +5,20 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-public class ConfigurationsManagement {
-
-    //variabili di configurazione sono PUBBLICHE per renderle accessibili alle classi:
-    // 1. TuringClient
-    // 2. TuringServer
-    // 3. CommandLineManagement
-
+public class ClientConfigurationManagement {
     private String serverHost; //DNS name server
     private int serverPort; //porta su cui Server e' in ascolto
     private int RMIPort; //porta utilizzata per gli inviti
     private int multicastPort; //porta utilizzata per i gruppi di chat
-    private int connectionTimeout; //tempo attesa Client prima di affermare di non potersi connettere al Server
+    private int connectionTimeout; //tempo attesa connessione Server / "receive" UDP chat multicast
     private int maxNumSectionsPerDocument; //numero massimo di sezioni che un documento puo' avere
     private int maxNumCharactersArg; //numero massimo di caratteri che username/password/nome_documento possono avere
-    private int numWorkersInThreadPool; //numero di threads nel ThreadPool
-    private String serverSaveDocumentsDirectory; //path della directory dove Server salva documenti dei Clients
-    private String serverEditDocumentsDirectory; //path della directory dove Server salva documenti da editare dei Clients
-    private String clientsDownloadsDocumentsDirectory; //path della directory dove Clients salvano documenti scaricati
+    private String clientsDownloadsDocumentsDirectory; //cartella nella quale Clients salvano loro files
 
     private FileManagement fileManagement = new FileManagement();
     private String currentPath = fileManagement.getCurrentPath();
 
-    /**
-     * Costruttore della classe ConfigurationsManagement
-     */
-    public ConfigurationsManagement(){
+    public ClientConfigurationManagement(){
         this.serverHost = "";
         this.serverPort = -1;
         this.RMIPort = -1;
@@ -38,9 +26,6 @@ public class ConfigurationsManagement {
         this.connectionTimeout = -1;
         this.maxNumSectionsPerDocument = -1;
         this.maxNumCharactersArg = -1;
-        this.numWorkersInThreadPool = -1;
-        this.serverSaveDocumentsDirectory = "";
-        this.serverEditDocumentsDirectory = "";
         this.clientsDownloadsDocumentsDirectory = "";
     }
 
@@ -101,30 +86,6 @@ public class ConfigurationsManagement {
     }
 
     /**
-     * Funzione che restituisce numero di threads nel ThreadPool
-     * @return numero di threads nel ThreadPool
-     */
-    public int getNumWorkersInThreadPool(){
-        return this.numWorkersInThreadPool;
-    }
-
-    /**
-     * Funzione che restituisce path della directory dove Server salva documenti dei Clients
-     * @return path della directory dove Server salva documenti dei Clients
-     */
-    public String getServerSaveDocumentsDirectory(){
-        return this.serverSaveDocumentsDirectory;
-    }
-
-    /**
-     * Funzione che restituisce path della directory dove Server salva documenti da editare dei Clients
-     * @return path della directory dove Server salva documenti da editare dei Clients
-     */
-    public String getServerEditDocumentsDirectory(){
-        return this.serverEditDocumentsDirectory;
-    }
-
-    /**
      * Funzione che restituisce path della directory dove Clients salvano documenti scaricati
      * @return path della directory dove Clients salvano documenti scaricati
      */
@@ -163,56 +124,45 @@ public class ConfigurationsManagement {
             lines = Files.readAllLines(path, StandardCharsets.UTF_8);
 
             for (String line : lines) {
-               if(!line.isEmpty() && !line.startsWith("#")){
-                   String delimiter = "=";
-                   String[] splitString = line.split(delimiter);
-                   String key = splitString[0].trim(); //rimuovo spazi vuoti inizio e fine stringa
-                   String value = splitString[1].trim(); //rimuovo spazi vuoti inizio e fine stringa
+                if(!line.isEmpty() && !line.startsWith("#")){
+                    String delimiter = "=";
+                    String[] splitString = line.split(delimiter);
+                    String key = splitString[0].trim(); //rimuovo spazi vuoti inizio e fine stringa
+                    String value = splitString[1].trim(); //rimuovo spazi vuoti inizio e fine stringa
 
-                   switch (key) {
-                       case "serverHost":
-                           this.serverHost = value;
-                           break;
-                       case "serverPort":
-                           this.serverPort = Integer.parseInt(value);
-                           break;
-                       case "RMIPort":
-                           this.RMIPort = Integer.parseInt(value);
-                           break;
-                       case "multicastPort":
-                           this.multicastPort = Integer.parseInt(value);
-                           break;
-                       case "connectionTimeout":
-                           this.connectionTimeout = Integer.parseInt(value);
-                           break;
-                       case "maxNumSectionsPerDocument":
-                           this.maxNumSectionsPerDocument = Integer.parseInt(value);
-                           break;
-                       case "maxNumCharactersArg":
-                           this.maxNumCharactersArg = Integer.parseInt(value);
-                           break;
-                       case "numWorkersInThreadPool":
-                           this.numWorkersInThreadPool = Integer.parseInt(value);
-                           break;
-                       case "serverSaveDocumentsDirectory":
-                           value = currentPath + "/src" + value;
-                           this.serverSaveDocumentsDirectory = value;
-                           break;
-                       case "serverEditDocumentsDirectory":
-                           value = currentPath + "/src" + value;
-                           this.serverEditDocumentsDirectory = value;
-                           break;
-                       case "clientsDownloadsDocumentsDirectory":
-                           value = currentPath + "/src" + value;
-                           this.clientsDownloadsDocumentsDirectory = value;
-                           break;
-                   }
-               }
+                    switch (key) {
+                        case "serverHost":
+                            this.serverHost = value;
+                            break;
+                        case "serverPort":
+                            this.serverPort = Integer.parseInt(value);
+                            break;
+                        case "RMIPort":
+                            this.RMIPort = Integer.parseInt(value);
+                            break;
+                        case "multicastPort":
+                            this.multicastPort = Integer.parseInt(value);
+                            break;
+                        case "connectionTimeout":
+                            this.connectionTimeout = Integer.parseInt(value);
+                            break;
+                        case "maxNumSectionsPerDocument":
+                            this.maxNumSectionsPerDocument = Integer.parseInt(value);
+                            break;
+                        case "maxNumCharactersArg":
+                            this.maxNumCharactersArg = Integer.parseInt(value);
+                            break;
+                        case "clientsDownloadsDocumentsDirectory":
+                            value = currentPath + "/src" + value;
+                            this.clientsDownloadsDocumentsDirectory = value;
+                            break;
+                    }
+                }
             }
         } catch (IOException e) {
-                e.printStackTrace();
-                System.err.println("[ERR] >> Errore nel leggere file di configurazione = " + confFile);
-                return FunctionOutcome.FAILURE;
+            e.printStackTrace();
+            System.err.println("[ERR] >> Errore nel leggere file di configurazione = " + confFile);
+            return FunctionOutcome.FAILURE;
         }
         // verifico se tutte le variabili di configurazione sono state inizializzate e se i valori sono leciti
         return checkConf();
@@ -227,7 +177,7 @@ public class ConfigurationsManagement {
      */
     public FunctionOutcome checkConf(){
         if(this.serverHost.isEmpty()){
-            System.err.println("[ERR] >> serverHost non inizializzao ");
+            System.err.println("[ERR] >> serverHost non inizializzato");
             return FunctionOutcome.FAILURE;
         }
         else if(!this.serverHost.equals("localhost") && !this.serverHost.equals("127.0.0.1.")){
@@ -258,18 +208,6 @@ public class ConfigurationsManagement {
             System.err.println("[ERR] >> maxNumCharactersArg = " + this.maxNumCharactersArg + " non valido");
             return FunctionOutcome.FAILURE;
         }
-        else if(this.numWorkersInThreadPool < 0){
-            System.err.println("[ERR] >> numWorkersInThreadPool = " + this.numWorkersInThreadPool + " non valido");
-            return FunctionOutcome.FAILURE;
-        }
-        else if(this.serverSaveDocumentsDirectory.isEmpty()){
-            System.err.println("[ERR] >> serverSaveDocumentsDirectory non inizializzao ");
-            return FunctionOutcome.FAILURE;
-        }
-        else if(this.serverEditDocumentsDirectory.isEmpty()){
-            System.err.println("[ERR] >> serverEditDocumentsDirectory non inizializzao ");
-            return FunctionOutcome.FAILURE;
-        }
         else if(this.clientsDownloadsDocumentsDirectory.isEmpty()){
             System.err.println("[ERR] >> clientsDownloadsDocumentsDirectory non inizializzao ");
             return FunctionOutcome.FAILURE;
@@ -291,26 +229,22 @@ public class ConfigurationsManagement {
      *         FAILURE se la creazione di una delle 3 cartelle oppure lo svuotamento di una di esse non ha avuto successo
      */
     public FunctionOutcome allocateConf(){
-        FunctionOutcome check1 = this.fileManagement.checkEsistenceDirectoryOtherwiseCreateIt(this.serverSaveDocumentsDirectory);
-        FunctionOutcome check2 = this.fileManagement.checkEsistenceDirectoryOtherwiseCreateIt(this.serverEditDocumentsDirectory);
-        FunctionOutcome check3 = this.fileManagement.checkEsistenceDirectoryOtherwiseCreateIt(this.clientsDownloadsDocumentsDirectory);
+        FunctionOutcome check = this.fileManagement.checkEsistenceDirectoryOtherwiseCreateIt(this.clientsDownloadsDocumentsDirectory);
 
-        if(check1 == FunctionOutcome.FAILURE || check2  == FunctionOutcome.FAILURE  || check3  == FunctionOutcome.FAILURE){
-            System.err.println("[ERR] >> Impossibile creare una delle 3 cartelle di configurazione");
+        if(check  == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile creare cartella di configurazione");
             return FunctionOutcome.FAILURE;
         }
 
-        //se le 3 cartelle esistevano gia' vanno svuotate
-        int numFilesDeleted1 = this.fileManagement.deleteDirectoryContent(this.serverSaveDocumentsDirectory);
-        int numFilesDeleted2 = this.fileManagement.deleteDirectoryContent(this.serverEditDocumentsDirectory);
-        int numFilesDeleted3 = this.fileManagement.deleteDirectoryContent(this.clientsDownloadsDocumentsDirectory);
+        //se la cartella esisteva gia' va svuotata
+        int numFilesDeleted = this.fileManagement.deleteDirectoryContent(this.clientsDownloadsDocumentsDirectory);
 
-        if(numFilesDeleted1 < 0 || numFilesDeleted2 < 0 || numFilesDeleted3  < 0){
-            System.err.println("[ERR] >> Impossibile svuotare una delle 3 cartelle di configurazione");
+        if(numFilesDeleted  < 0){
+            System.err.println("[ERR] >> Impossibile svuotare cartella di configurazione");
             return FunctionOutcome.FAILURE;
         }
 
-        return FunctionOutcome.SUCCESS; //creazione/svuotamento 3 cartelle andato a buon fine
+        return FunctionOutcome.SUCCESS; //creazione/svuotamento cartella andato a buon fine
     }
 
     /**
@@ -326,9 +260,6 @@ public class ConfigurationsManagement {
         System.out.println("- Valore del Timeout = " + this.connectionTimeout);
         System.out.println("- Numero massimo di sezioni = " + this.maxNumSectionsPerDocument);
         System.out.println("- Lunghezza massima dei campi da poter inserire = " + this.maxNumCharactersArg);
-        System.out.println("- Dimensione del ThreadPool = " + this.numWorkersInThreadPool);
-        System.out.println("- Directory dove andare a salvare i file = " + this.serverSaveDocumentsDirectory);
-        System.out.println("- Directory dove andare a salvare i file da editare = " + this.serverEditDocumentsDirectory);
         System.out.println("- Directory radice dove andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
         System.out.println();
     }

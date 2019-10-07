@@ -42,7 +42,7 @@ public class TuringRegistrationRMI implements TuringRegistrationInterface {
             boolean check = hash_users.containsKey(username);
 
             if (check) {  //username gia' in uso => utente gia' registrato
-                return ServerResponse.OP_REGISTER_USERNAME_ALREADY_TAKEN;
+                return ServerResponse.OP_USERNAME_ALREADY_TAKEN;
             } else {  //utente non registratrato
                 //creo utente
                 User u = new User(username, password);
@@ -50,10 +50,10 @@ public class TuringRegistrationRMI implements TuringRegistrationInterface {
                 //inserisco utente nella hash_users
                 this.hash_users.put(username, u);
 
-                return ServerResponse.OP_REGISTER_OK;
+                return ServerResponse.OP_OK;
             }
         }
         else  //utente e' logato => deve fare logout per poter fare nuova registrazione
-            return ServerResponse.OP_REGISTER_USER_ALREADY_ONLINE;
+            return ServerResponse.OP_USER_ALREADY_ONLINE;
     }
 }

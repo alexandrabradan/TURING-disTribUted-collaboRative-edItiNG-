@@ -1,13 +1,13 @@
 public class TuringServer {
-    private static String defaultConfFile = "/src/data/turing.conf";
-    private static ConfigurationsManagement configurationsManagement = new ConfigurationsManagement();
+    private static String defaultConfFile = "/src/data/turingServer.conf";
+    private static ServerConfigurationsManagement configurationsManagement = new ServerConfigurationsManagement();
 
     public static void main(String[] args){
         System.out.println("[Turing] >> SERVER TURING AVVIATO");
         System.out.println();
 
 
-        //se il file di configurazioni è inserito al momento dell'esecuzione parso questo
+        //se il file di configurazioni è inserito al momento dell'esecuzione prendo questo
         if(args.length>0) {
             System.out.println("[Turing] >> Fase di caricamento delle configurazioni del Server");
             String confFile = args[0];
@@ -29,7 +29,7 @@ public class TuringServer {
 
             System.out.println("[Turing] >> Il server è stato eseguito con le configurazioni di default");
             System.out.println("[Turing] >> Se desidi personalizzare le configuarzioni, riesegui il codice inserendo tra gli argomenti il tuo file");
-            System.out.println("[Turing] >> Per maggiori dettagli sul formato delle configurazioni, guardare il file <./data/turing.conf>");
+            System.out.println("[Turing] >> Per maggiori dettagli sul formato delle configurazioni, guardare il file <./data/turingServer.conf>");
         }
 
         //mostro a video le configurazioni con cui è stato eseguito il server Turing
@@ -45,7 +45,7 @@ public class TuringServer {
 
         //***************************************CREAZIONE LISTENER THREAD*********************************************//
 
-        Listener listener = new Listener();
+        TuringListener listener = new TuringListener();
         Thread thread = new Thread(listener);
         thread.start();
 

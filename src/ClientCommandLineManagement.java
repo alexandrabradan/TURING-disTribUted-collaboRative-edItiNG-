@@ -2,8 +2,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-public class CommandLineManagement {
-    private ConfigurationsManagement configurationsManagement; //per reperire var. di configurazione
+public class ClientCommandLineManagement {
+    private ClientConfigurationManagement configurationsManagement; //per reperire var. di configurazione
 
     private CommandType currentCommand; //commando corrente letto da  tastiera
     private String currentArg1;  //eventuale argomento 1 del comando
@@ -13,8 +13,8 @@ public class CommandLineManagement {
     /**
      * Costruttore della classe CommandLineManagement, che si occupa di inizializzare le variabili della classe
      */
-    public CommandLineManagement(){
-        this.configurationsManagement = new ConfigurationsManagement();
+    public ClientCommandLineManagement(){
+        this.configurationsManagement = new ClientConfigurationManagement();
 
         this.currentCommand = CommandType.HELP;
         this.currentArg1 = "";
@@ -46,7 +46,7 @@ public class CommandLineManagement {
     }
 
     /**
-     * Funzione che inizializza il primo argoento del  comando corrente
+     * Funzione che inizializza il primo argomento del  comando corrente
      * @param arg1 primo argomento del comando attuale
      */
     private void setCurrentArg1(String arg1){
@@ -142,7 +142,7 @@ public class CommandLineManagement {
                 int commandWordsLength = commandWords.length;  //numero di parole lette
 
                 //verifico se comando inizia con la parola "turing"
-                if(!commandWords[0].equals("turing")){  //comando NON inizia con la parola Turing
+                if(!commandWords[0].equals("turing")){  //comando NON inizia con la parola turing
                     System.err.println("[Turing] >> Comando non valido.");
                     System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
                     System.out.println("[Turing] >> turing --help");
@@ -248,7 +248,6 @@ public class CommandLineManagement {
                                 return readAndParseCommand();
                         }
                     }
-
                 }
             }
         } catch (IOException e) {
