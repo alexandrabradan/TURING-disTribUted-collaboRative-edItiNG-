@@ -175,7 +175,7 @@ public class ClientCommandLineManagement {
                             case("register"):{
                                 //verifico se c'e' l'username e la password
                                 String correctCommandToPrint = "register <username> <password>";
-                                return checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.LOGIN);
+                                return checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.REGISTER);
                             }
                             case("login"):{
                                 //verifico se c'e' l'username e la password
@@ -259,105 +259,26 @@ public class ClientCommandLineManagement {
     }
 
     /**
-     * Funzione che verifica se l'username/password/documento passato come argomento rientra nel range stabilito dal file
-     * di configurazione o meno
-     * @param argument username/password/documento da verificare
-     * @return SUCCESS se username/password/documento e' lecito
-     *         FAILURE altrimenti
+     * Funzione che verifica se la string passata come argomento corrisponde ad un valore numerico oppure meno
+     * @param numSections stringa da verificare se e' solamente numerica
+     * @return true se la stringa passata come argomento corrisponde ad un valore numerico
+     *         false altrimenti
      */
-    private FunctionOutcome checkMaxNumCharactersArg(String argument){
-        int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
-        if(argument.length() > maxNumCharactersArg)
-            return FunctionOutcome.FAILURE;  //argomento supera num. caratteri consentito
+    private boolean checkIfNumSectionIsNumeric(String numSections){
+        return numSections != null && numSections.matches("[0-9]+");
+    }
+
+    /**
+     * Funzione che verifica se il numero di sezioni e' non negativo
+     * @param numSections numero di sezioni da verificare
+     * @return SUCCESS se il numero di sezioni e' > 0
+     *         FAILURE
+     */
+    private FunctionOutcome checkIFNumSectionIsStrictlyPositive(int numSections){
+        if(numSections < 1)
+            return FunctionOutcome.FAILURE;
         else
-            return FunctionOutcome.SUCCESS;  //argomento non supera num.caratteri consentito
-    }
-
-    /**
-     * Funzione che verifica se il numero di sezione passato come argomento rientra nel range stabilito dal file
-     * di configurazione o meno
-     * @param numSections numero di sezione da verificare
-     * @return SUCCESS se il numero di sezione e' lecito
-     *         FAILURE altrimenti
-     */
-    private  FunctionOutcome checkMaxNumSectionsPerDocument(int numSections){
-        int maxNumSectionsPerDocument = this.configurationsManagement.getMaxNumSectionsPerDocument();
-        if(numSections > maxNumSectionsPerDocument)
-            return FunctionOutcome.FAILURE;  //numero sezioni supera valore consentito
-        else
-            return FunctionOutcome.SUCCESS;  //numero sezioni non supera valore consentito
-    }
-
-    /**
-     * Funzione che verifica se l' username/documento  e la password/username non supera i caratteri consentiti
-     * dal file di configurazione
-     * @param arg1 username / nome del documento da verificare
-     * @param arg2 password / username da verificare
-     * @param commandType tipo di comando che richiede la verifica
-     * @return SUCCESS se username/documento  e la password/username sono lecitti
-     *         FAILURE altrimenti
-     */
-    private FunctionOutcome checkStringARGAndStringArg(String arg1, String arg2, CommandType commandType){
-        //verifico se numero dei caratteri del primo argomento e del non superino il numero consentito o meno
-        FunctionOutcome check1 = checkMaxNumCharactersArg(arg1);
-        FunctionOutcome check2 = checkMaxNumCharactersArg(arg2);
-        if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
-            if(check1 == FunctionOutcome.FAILURE){
-                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
-                System.err.println("[Turing] >> %s supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        arg1 + maxNumCharactersArg);
-            }
-
-            if(check2 == FunctionOutcome.FAILURE){
-                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
-                System.err.println("[Turing] >> %s supera i caratteri consentiti. Il valore deve esse <= %d" +
-                       arg2 +  maxNumCharactersArg);
-            }
-            System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-            return readAndParseCommand();
-        }
-        else{
-            setCurrentCommand(commandType);
-            setCurrentArg1(arg1);
-            setCurrentArg2(arg2);
             return FunctionOutcome.SUCCESS;
-        }
-    }
-
-    /**
-     * Funzione che verifica se il nome di un documento non supera i caratteri consentiti dal file di configurazione
-     * e che il numero di sezione del documento sia nel range stabilito sempre dal file di configurazione
-     * @param arg1 nome del documento da verificare
-     * @param arg2 numero sezione del documento da verificare
-     * @param commandType tipo di comando che richiede la verifica
-     * @return SUCCESS se il nome del documento ed il suo numerod di sezione sono lecitti
-     *         FAILURE altrimenti
-     */
-    private FunctionOutcome checkStringARGAndIntArg(String arg1, String arg2, CommandType commandType){
-        //verifico se numero dei caratteri del primo argomento e del non superino il numero consentito o meno
-        FunctionOutcome check1 = checkMaxNumCharactersArg(arg1);
-        FunctionOutcome check2 = checkMaxNumSectionsPerDocument(Integer.parseInt(arg2));
-        if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
-            if(check1 == FunctionOutcome.FAILURE){
-                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
-                System.err.println("[Turing] >> %s supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        arg1 + maxNumCharactersArg);
-            }
-
-            if(check2 == FunctionOutcome.FAILURE){
-                int maxNumSectionsPerDocument = this.configurationsManagement.getMaxNumSectionsPerDocument();
-                System.err.println("[Turing] >> %d supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        Integer.parseInt(arg2) +  maxNumSectionsPerDocument);
-            }
-            System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-            return readAndParseCommand();
-        }
-        else{
-            setCurrentCommand(commandType);
-            setCurrentArg1(arg1);
-            setCurrentArg2(arg2);
-            return FunctionOutcome.SUCCESS;
-        }
     }
 
     /**
@@ -380,7 +301,7 @@ public class ClientCommandLineManagement {
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
             return readAndParseCommand();
         }
-        else{
+        else{ //comando senza argomenti e' sintatticamente corretto
             setCurrentCommand(commandType);
             return FunctionOutcome.SUCCESS;
         }
@@ -404,24 +325,13 @@ public class ClientCommandLineManagement {
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
             return readAndParseCommand();
         }
-        else{
-            //verifico che nome documento / msg non superino il num. caratteri del file di configurazione
-            FunctionOutcome check = checkMaxNumCharactersArg(commandWords[2]);
-            if(check == FunctionOutcome.FAILURE){
-                int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
-                System.err.println("[Turing] >> %d supera i caratteri consentiti. Il valore deve esse <= %d" +
-                        commandWords[2] +  maxNumCharactersArg);
-                System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-                return readAndParseCommand();
-            }
-            else{
-                setCurrentCommand(commandType);
-                setCurrentArg1( commandWords[2]);
-                return FunctionOutcome.SUCCESS;
-            }
-        }
-    }
+        else{ //commando con 1 argomento e' sintatticamente corretto
+            setCurrentCommand(commandType);
+            setCurrentArg1( commandWords[2]);
+            return FunctionOutcome.SUCCESS;
 
+}
+    }
     /**
      * Funzione che verifica che i commandi senza argomenti:
      * 1. turing register <username> <password>
@@ -449,19 +359,33 @@ public class ClientCommandLineManagement {
         else{
             //verifico che i 2 argomenti non superino il numero di caratteri / sezioni del file di configurazione
             switch (commandType){
-                case REGISTER:
-                case LOGIN:
-                case SHARE: {
-                    return checkStringARGAndStringArg(commandWords[2], commandWords[3], commandType);
-                }
                 case CREATE:
                 case SHOW_SECTION:
-                case EDIT: 
+                case EDIT:
                 case END_EDIT:{
-                    return checkStringARGAndIntArg(commandWords[2], commandWords[3], commandType);
+                    if(!checkIfNumSectionIsNumeric(commandWords[3])){ //num. sezione non e' un valore numerico
+                        System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere un valore numerico:");
+                        System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
+                        return readAndParseCommand();
+                    }
+                    else{
+                        //verifico che numero sezione sia strettamente positivo
+                        FunctionOutcome check =  checkIFNumSectionIsStrictlyPositive(Integer.parseInt(commandWords[3]));
+                        if(check == FunctionOutcome.FAILURE){
+                            System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere un valore positivo:");
+                            System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
+                            return readAndParseCommand();
+                        }
+                        else return FunctionOutcome.SUCCESS; //secondo argomento e' un numero positivo
+                    }
                 }
                 default:{
-                    return FunctionOutcome.FAILURE;
+                    //verifica username-password-documento viene fatta dal Server a seconda sue configurazioni:
+                    //1. mininimo numero caratteri
+                    //2. massimo numero caratteri
+                    //3. presenza caratteri speciali
+                    //4. massimo numero sezioni per documento
+                    return FunctionOutcome.SUCCESS;
                 }
             }
         }

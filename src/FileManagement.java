@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class FileManagement {
@@ -118,10 +119,10 @@ public class FileManagement {
      * Funzione che cancella i files presenti nella cartella che si trova nel path passato come argomento e restituisce
      * il numero totale di files che si trovavano al suo interno
      * @param directoryPath path della cartella che bisogna svuotare
-     * @return numero >=0: numero di files che la cartella conteneva e che sono stati eliminati con successo
-     *         -1: se e' subentrato un errore nell'eliminazione di un file oppure la cartella non esiste
+     * @return numero SUCCESS: se contenuto della cartella e' stato eliminato con successo
+     *                FAILURE: se e' subentrato un errore nell'eliminazione di un file oppure la cartella non esiste
      */
-    public int deleteDirectoryContent(String directoryPath){
+    public FunctionOutcome deleteDirectoryContent(String directoryPath){
 
         //verifico esistenza cartella
         boolean exist = checkEsistenceDirectory(directoryPath);
@@ -130,13 +131,12 @@ public class FileManagement {
             Path pathToBeDeleted = Paths.get(directoryPath);
             try {
 
-                List<String> filesList = Files.walk(pathToBeDeleted).filter(Files::isRegularFile)
+                Files.walk( pathToBeDeleted )
                         .filter(path -> !path.equals(pathToBeDeleted))
-                        .map(Path::toString).collect(Collectors.toList());
-
-                filesList.forEach(this::deleteFile);
-
-                return filesList.size(); //eliminazione files con successo
+                        .map( Path::toFile )
+                        .sorted( Comparator.comparing( File::isDirectory ) )
+                        .forEach( File::delete );
+                return FunctionOutcome.SUCCESS;
 
             } catch (IOException e) {
                 System.err.println("Exception thrown  :" + e);
@@ -145,11 +145,11 @@ public class FileManagement {
         }
         else{
             System.err.println("[ERR] >> Impossibile eliminare contenuto della cartella <<" + directoryPath + ">>, cartella non esistente");
-            return -1; //cartella non esiste
+            return FunctionOutcome.FAILURE; //cartella non esiste
         }
 
         System.err.println("[ERR] >> Impossibile eliminare contentuo della cartella <<" + directoryPath + ">>");
-        return -1; //se arrivo qui ci sono stati problemi
+        return FunctionOutcome.FAILURE; //se arrivo qui ci sono stati problemi
     }
 
     /**
@@ -186,6 +186,17 @@ public class FileManagement {
 
         System.err.println("[ERR] >> Impossibile conteggiare files della cartella <<" + directoryPath + ">>");
         return -1; //se arrivo qui ci sono stati problemi
+    }
+
+    public FunctionOutcome IsValidFilename(String fileName)
+    {
+        Pattern regex = Pattern.compile("[$&+,:;=\\\\?@#|/'<>.^*()%!-]");
+
+        if (regex.matcher(fileName).find()) {
+            return FunctionOutcome.FAILURE;
+        }
+
+        return FunctionOutcome.SUCCESS;
     }
 
     /**

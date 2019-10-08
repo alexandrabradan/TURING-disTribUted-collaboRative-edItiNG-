@@ -11,8 +11,6 @@ public class ClientConfigurationManagement {
     private int RMIPort; //porta utilizzata per gli inviti
     private int multicastPort; //porta utilizzata per i gruppi di chat
     private int connectionTimeout; //tempo attesa connessione Server / "receive" UDP chat multicast
-    private int maxNumSectionsPerDocument; //numero massimo di sezioni che un documento puo' avere
-    private int maxNumCharactersArg; //numero massimo di caratteri che username/password/nome_documento possono avere
     private String clientsDownloadsDocumentsDirectory; //cartella nella quale Clients salvano loro files
 
     private FileManagement fileManagement = new FileManagement();
@@ -24,8 +22,6 @@ public class ClientConfigurationManagement {
         this.RMIPort = -1;
         this.multicastPort = -1;
         this.connectionTimeout = -1;
-        this.maxNumSectionsPerDocument = -1;
-        this.maxNumCharactersArg = -1;
         this.clientsDownloadsDocumentsDirectory = "";
     }
 
@@ -67,22 +63,6 @@ public class ClientConfigurationManagement {
      */
     public int getConnectionTimeout(){
         return this.connectionTimeout;
-    }
-
-    /**
-     * Funzione che restituisce numero massimo di sezioni che un documento puo' avere
-     * @return numero massimo di sezioni che un documento puo' avere
-     */
-    public int getMaxNumSectionsPerDocument(){
-        return this.maxNumSectionsPerDocument;
-    }
-
-    /**
-     * Funzione che restiruisce numero massimo di caratteri che username/password/nome_documento possono avere
-     * @return numero massimo di caratteri che username/password/nome_documento possono avere
-     */
-    public int getMaxNumCharactersArg(){
-        return this.maxNumCharactersArg;
     }
 
     /**
@@ -147,11 +127,6 @@ public class ClientConfigurationManagement {
                             this.connectionTimeout = Integer.parseInt(value);
                             break;
                         case "maxNumSectionsPerDocument":
-                            this.maxNumSectionsPerDocument = Integer.parseInt(value);
-                            break;
-                        case "maxNumCharactersArg":
-                            this.maxNumCharactersArg = Integer.parseInt(value);
-                            break;
                         case "clientsDownloadsDocumentsDirectory":
                             value = currentPath + "/src" + value;
                             this.clientsDownloadsDocumentsDirectory = value;
@@ -200,14 +175,6 @@ public class ClientConfigurationManagement {
             System.err.println("[ERR] >> connectionTimeout = " + this.connectionTimeout + " non valido");
             return FunctionOutcome.FAILURE;
         }
-        else if(this.maxNumSectionsPerDocument < 1){ //docuemnto deve avere almeno una sezione
-            System.err.println("[ERR] >> maxNumSectionsPerDocument = " + this.maxNumSectionsPerDocument + " non valido");
-            return FunctionOutcome.FAILURE;
-        }
-        else if(this.maxNumCharactersArg < 1){ //argomenti devono avere almeno un carattere
-            System.err.println("[ERR] >> maxNumCharactersArg = " + this.maxNumCharactersArg + " non valido");
-            return FunctionOutcome.FAILURE;
-        }
         else if(this.clientsDownloadsDocumentsDirectory.isEmpty()){
             System.err.println("[ERR] >> clientsDownloadsDocumentsDirectory non inizializzao ");
             return FunctionOutcome.FAILURE;
@@ -237,9 +204,9 @@ public class ClientConfigurationManagement {
         }
 
         //se la cartella esisteva gia' va svuotata
-        int numFilesDeleted = this.fileManagement.deleteDirectoryContent(this.clientsDownloadsDocumentsDirectory);
+        check = this.fileManagement.deleteDirectoryContent(this.clientsDownloadsDocumentsDirectory);
 
-        if(numFilesDeleted  < 0){
+        if(check  == FunctionOutcome.FAILURE){
             System.err.println("[ERR] >> Impossibile svuotare cartella di configurazione");
             return FunctionOutcome.FAILURE;
         }
@@ -258,8 +225,6 @@ public class ClientConfigurationManagement {
         System.out.println( "- Porta utilizzata per gli inviti = " + this.RMIPort);
         System.out.println( "- Porta utilizzata per gli indirizzi di multicast = " + this.multicastPort);
         System.out.println("- Valore del Timeout = " + this.connectionTimeout);
-        System.out.println("- Numero massimo di sezioni = " + this.maxNumSectionsPerDocument);
-        System.out.println("- Lunghezza massima dei campi da poter inserire = " + this.maxNumCharactersArg);
         System.out.println("- Directory radice dove andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
         System.out.println();
     }

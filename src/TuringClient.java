@@ -94,7 +94,6 @@ public class TuringClient {
         //1. leggere comandi da tastiera
         //2. inviare richieste al Server
         //3. attendere risposte dal Server
-        System.out.println("[Turing] >> Digita nuovo comando:");
         startLoopRequestsAndResponses();
     }
 
@@ -163,6 +162,8 @@ public class TuringClient {
 
         while (true) {
 
+            System.out.println("[Turing] >> Digita nuovo comando:");
+
             //leggo commando da tastiera
             ClientCommandLineManagement commandLineManagement = new ClientCommandLineManagement();
             FunctionOutcome check = commandLineManagement.readAndParseCommand();
@@ -173,7 +174,6 @@ public class TuringClient {
                 switch(currentCommand){
                     case HELP:{
                         System.out.println();  //spazio dopo aver stampato comando di aiuto
-                        System.out.println("[Turing] >> Digita nuovo comando:");
                         continue; //digito comando successivo
                     }
                     case REGISTER:{
@@ -413,9 +413,6 @@ public class TuringClient {
             }
             case OP_USER_ALREADY_ONLINE:{
                 System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", arg1));
-            }
-            case OP_USERNAME_INCORRECT:{
-                System.err.println(String.format("[ERR] >> Username |%s| ERRATO.", arg1));
             }
             case OP_PASSWORD_INCORRECT:{
                 System.err.println(String.format("[ERR] >> Password |%s| ERRATO.", arg2));
