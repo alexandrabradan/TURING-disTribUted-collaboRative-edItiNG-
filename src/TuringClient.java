@@ -184,7 +184,8 @@ public class TuringClient {
                         closeClientSocket(); //chiudo client-socket e programma
                     }
                     case REGISTER:{
-                        //registro Client al Server tramite stub RMI
+                        //ho registrazione al servizio tramite stub RMI avvenuta con successo => commando seguente
+                        continue;
                     }
                     case LOGIN:{}
                     case LOGOUT:{}

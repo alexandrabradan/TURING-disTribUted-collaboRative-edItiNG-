@@ -27,8 +27,8 @@ public class TuringRegistrationRMI implements TuringRegistrationInterface {
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkMinNumCharactersArg(String argument){
-        int maxNumCharactersArg = this.serverConfigurationsManagement.getMinNumCharactersArg();
-        if(argument.length() < maxNumCharactersArg)
+        int minNumCharactersArg = this.serverConfigurationsManagement.getMinNumCharactersArg();
+        if(argument.length() < minNumCharactersArg)
             return FunctionOutcome.FAILURE;  //argomento inferiore num. minimo caratteri consentito
         else
             return FunctionOutcome.SUCCESS;  //argomento non inferiore num. minimo caratteri consentito
@@ -47,21 +47,6 @@ public class TuringRegistrationRMI implements TuringRegistrationInterface {
             return FunctionOutcome.FAILURE;  //argomento supera num. caratteri consentito
         else
             return FunctionOutcome.SUCCESS;  //argomento non supera num.caratteri consentito
-    }
-
-    /**
-     * Funzione che verifica se il numero di sezione passato come argomento rientra nel range stabilito dal file
-     * di configurazione o meno
-     * @param numSections numero di sezione da verificare
-     * @return SUCCESS se il numero di sezione e' lecito
-     *         FAILURE altrimenti
-     */
-    private  FunctionOutcome checkMaxNumSectionsPerDocument(int numSections){
-        int maxNumSectionsPerDocument = this.serverConfigurationsManagement.getMaxNumSectionsPerDocument();
-        if(numSections > maxNumSectionsPerDocument)
-            return FunctionOutcome.FAILURE;  //numero sezioni supera valore consentito
-        else
-            return FunctionOutcome.SUCCESS;  //numero sezioni non supera valore consentito
     }
 
     /**

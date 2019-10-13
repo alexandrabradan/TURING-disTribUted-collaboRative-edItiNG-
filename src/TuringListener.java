@@ -2,6 +2,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.*;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.server.UnicastRemoteObject;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Iterator;
@@ -19,8 +23,43 @@ public class TuringListener implements Runnable {
     private ServerConfigurationsManagement configurationsManagement;
     private ServerDataStructures serverDataStructures;
     private ThreadPoolExecutor threadPool;
-    private TuringRegistrationRMI registrationRMI;
     private SimpleDateFormat dateFormat;  //classe necessaria per recuperare ora attuale
+
+    /**
+     * Funzione che si occupa di attivare l'RMI per consentire agli utenti di registrarsi al servizio
+     * @param RMIPort porta RMI da utilizzare per il aprire il registro RMI
+     * @return SUCCESS se l'attivazione del servizio di registrazione tramite RMI ha avuto successo
+     *         FAILURE altrimenti
+     */
+    private FunctionOutcome activateRMI(int RMIPort){
+        //creo oggetto remoto
+        TuringRegistrationInterface turingRegistrationRMI = new TuringRegistrationRMI(this.configurationsManagement,
+                                                                                            this.serverDataStructures);
+        //creo stub, che Client chiamera' per utilizzare oggetto remoto del Server
+        TuringRegistrationInterface stub = null;
+        try {
+            //remoteObj = oggetto remoto del Server
+            //port = porta utilizzata per esportare l'oggetto remoto sul Registro(=0 qualsiasi)
+            stub = (TuringRegistrationInterface) UnicastRemoteObject.exportObject(turingRegistrationRMI,0);
+
+            //creo un Registro locale del Server, nel quale andro' a memoriizzare il riferimento (stub) all'oggetto
+            // remoto, reperibile dai Clients
+            LocateRegistry.createRegistry(RMIPort); //portaRMI di default = 1099
+
+            //reperiamo il Registro locale appena creato
+            Registry reg = LocateRegistry.getRegistry(this.configurationsManagement.getServerHost(), RMIPort);
+
+            //associamo una chiave univoca allo stub (riferimento dell'oggetto remoto)
+            //e inseriamo la coppia (chiave, stub) nel Registro => stub ora e' reperibile per qualsiasi
+            //Client in grado di localizzare questo Registro locale
+            reg.rebind("TURING-RMI-REGISTRATION", stub);
+
+            return FunctionOutcome.SUCCESS;
+        } catch (RemoteException e) {
+            e.printStackTrace();
+            return FunctionOutcome.FAILURE;
+        }
+    }
 
     public TuringListener(ServerConfigurationsManagement configurationsManagement){
         this.configurationsManagement = configurationsManagement;
@@ -33,10 +72,16 @@ public class TuringListener implements Runnable {
         this.serverDataStructures = new ServerDataStructures();
         System.out.println("[Turing] >> Strutture dati allocate con successo");
 
-        //*************************************CREAZIONE STUB PER REGISTRAZIONE UTENTI********************************//
-        System.out.println("[Turing] >> Fase di creazione dello stub RMI per le registrazioni");
-        this.registrationRMI = new TuringRegistrationRMI(this.configurationsManagement, this.serverDataStructures);
-        System.out.println("[Turing] >> Stub RMI creato con successo");
+        //*************************************CREAZIONE STUB PER REGISTRARE UTENTI***********************************//
+        System.out.println("[Turing] >> Fase di attivazione dello stub RMI per le registrazioni");
+        FunctionOutcome check = activateRMI(this.configurationsManagement.getRMIPort());
+
+        if(check == FunctionOutcome.FAILURE){
+            System.err.println("[Turing] >> Impossibile attivare stub RMI per la registrazione");
+            Thread.currentThread().interrupt(); //segnalo al padre che Listener ha terminato sua esecuzione
+        }
+
+        System.out.println("[Turing] >> Stub RMI attivato con successo");
 
         //*************************************CREAZIONE THREADPOOL***************************************************//
         System.out.println("[Turing] >> Fase di creazione del ThreadPool");

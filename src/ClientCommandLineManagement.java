@@ -1,6 +1,11 @@
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.time.Year;
 
 public class ClientCommandLineManagement {
     private ClientConfigurationManagement configurationsManagement; //per reperire var. di configurazione
@@ -66,7 +71,7 @@ public class ClientCommandLineManagement {
      * @param arg2 secondo argomento del comando attuale
      */
     private void setCurrentArg2(String arg2){
-        this.currentArg1 = arg2;
+        this.currentArg2 = arg2;
     }
 
     /**
@@ -109,6 +114,81 @@ public class ClientCommandLineManagement {
     }
 
     /**
+     * Funzione che si occupa di reperire lo stub RMI messo a disposizione dal Server e di effettuare
+     * la chiamata del metodo remoto "registerTask" con il quale si tenta di registrare un nuovo utente
+     * al servizio
+     * @return SUCCESS se e' stato possibile registrare tramiet RMI l'utente al servizio
+     *         FAILURE altrimenti
+     */
+    public FunctionOutcome handleRegistration(){
+
+        Registry registry = null;
+        try {
+            //recupero Registro locale del Server
+            registry = LocateRegistry.getRegistry(configurationsManagement.getServerHost(),
+                    configurationsManagement.getRMIPort());
+
+            //recupero stub (riferimento oggetto remoto del Server)
+            TuringRegistrationInterface stub = null;
+            try {
+                //provo a recuperare lo stub associato alla chiave univoca "TURING-RMI-REGISTRATION"
+                stub = (TuringRegistrationInterface) registry.lookup("TURING-RMI-REGISTRATION");
+
+            } catch (NotBoundException e) {
+                e.printStackTrace();
+                return FunctionOutcome.FAILURE;
+
+            }
+
+            //stub recuperato con successo => invoco metodo remoto per registrarmi
+            ServerResponse serverResponse = stub.registerTask(this.currentArg1, this.currentArg2);
+
+            switch (serverResponse){
+                case OP_OK:{
+                    System.out.println(String.format("[Turing] >> Registrazione dell'utente |%s| avvenuta con " +
+                            "successo", currentArg1));
+                    break;
+                }
+                case OP_USERNAME_INAVLID_CHARACTERS:{
+                    System.err.println(String.format("[ERR] >> Username |%s| NON valido. Il nome utente non puo' contentere" +
+                            ": ['\\\\', '/', ':', '*', '?', '\"', '<', '>', '|']", currentArg1));
+                    break;
+                }
+                case OP_USERNAME_TOO_SHORT:{
+                    System.err.println(String.format("[ERR] >> Username |%s| troppo corto.", currentArg1));
+                    break;
+                }
+                case OP_USERNAME_TOO_LONG:{
+                    System.err.println(String.format("[ERR] >> Username |%s| troppo lungo.", currentArg1));
+                    break;
+                }
+                case OP_PASSWORD_TOO_SHORT:{
+                    System.err.println(String.format("[ERR] >> Password |%s| troppo corta.", currentArg2));
+                    break;
+                }
+                case OP_PASSWORD_TOO_LONG:{
+                    System.err.println(String.format("[ERR] >> Password |%s| troppo lunga.", currentArg2));
+                    break;
+                }
+                case OP_USERNAME_ALREADY_TAKEN:{
+                    System.err.println(String.format("[ERR] >> Username |%s| GIA' in uso.", currentArg1));
+                    break;
+                }
+                case OP_USER_MUST_LOGOUT:{
+                    System.err.println("[ERR] >> Devi prima fare il logout per poterti registrate con un altro account.");
+                    break;
+                }
+            }
+
+            return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
+
+        } catch (RemoteException e) {
+            e.printStackTrace();
+            return FunctionOutcome.FAILURE;
+        }
+    }
+
+    /**
      * Funzione che si occupa di leggere un commando da tastiera e di verificarne la correttezza sintattica
      * @return SUCCESS se il commando e' sintatticamente corretto
      *         FAILURE altrimenti
@@ -140,6 +220,10 @@ public class ClientCommandLineManagement {
                 String[] commandWords = command.split("\\s+");
 
                 int commandWordsLength = commandWords.length;  //numero di parole lette
+
+                for(int i = 0; i < commandWordsLength; i++){
+                    System.out.print(String.format("[%d] = %s ", i, commandWords[i]));
+                }
 
                 //verifico se comando inizia con la parola "turing"
                 if(!commandWords[0].equals("turing")){  //comando NON inizia con la parola turing
@@ -175,7 +259,10 @@ public class ClientCommandLineManagement {
                             case("register"):{
                                 //verifico se c'e' l'username e la password
                                 String correctCommandToPrint = "register <username> <password>";
-                                return checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.REGISTER);
+                                FunctionOutcome check = checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.REGISTER);
+                                if(check == FunctionOutcome.SUCCESS) //commando sintatticamente corretto
+                                    return handleRegistration();
+                                else return check; //commando sintatticamente scorretto
                             }
                             case("login"):{
                                 //verifico se c'e' l'username e la password
@@ -413,18 +500,19 @@ public class ClientCommandLineManagement {
                             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
                             return readAndParseCommand();
                         }
-                        else return FunctionOutcome.SUCCESS; //secondo argomento e' un numero positivo
                     }
                 }
-                default:{
-                    //verifica username-password-documento viene fatta dal Server a seconda sue configurazioni:
-                    //1. mininimo numero caratteri
-                    //2. massimo numero caratteri
-                    //3. presenza caratteri speciali
-                    //4. massimo numero sezioni per documento
-                    return FunctionOutcome.SUCCESS;
-                }
             }
+
+            //verifica username-password-documento viene fatta dal Server a seconda sue configurazioni:
+            //1. mininimo numero caratteri
+            //2. massimo numero caratteri
+            //3. presenza caratteri speciali
+            //4. massimo numero sezioni per documento
+            setCurrentCommand(commandType);
+            setCurrentArg1(commandWords[2]);
+            setCurrentArg2(commandWords[3]);
+            return FunctionOutcome.SUCCESS; //secondo argomento e' un numero positivo
         }
     }
 }

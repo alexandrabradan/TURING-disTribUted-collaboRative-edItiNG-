@@ -100,8 +100,8 @@ public class TuringWorker implements Runnable{
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkMinNumCharactersArg(String argument){
-        int maxNumCharactersArg = this.configurationsManagement.getMinNumCharactersArg();
-        if(argument.length() < maxNumCharactersArg)
+        int minNumCharactersArg = this.configurationsManagement.getMinNumCharactersArg();
+        if(argument.length() < minNumCharactersArg)
             return FunctionOutcome.FAILURE;  //argomento inferiore num. minimo caratteri consentito
         else
             return FunctionOutcome.SUCCESS;  //argomento non inferiore num. minimo caratteri consentito

@@ -241,144 +241,146 @@ public class RequestManagement {
         switch (responeType){
             case OP_OK:{  //discrimino quale operazione ha avuto successo
                 switch (this.currentCommand){
-                    case REGISTER: {
-                        System.out.println(String.format("[Turing] >> Registrazione dell'utente |%s| avvenuta con " +
-                                "successo", currentArg1));
-                    }
                     case LOGIN:{
                         System.out.println("[Turing] >> Login avvenuto con successo");
+                        break;
                     }
                     case LOGOUT:{
                         System.out.println(String.format("[Turing] >> Logout dell'utente |%s| avvenuto con " +
                                 "successo", currentArg1));
+                        break;
                     }
                     case CREATE:{
                         System.out.println(String.format("[Turing] >> Creazione del documento |%s| con |%s| sezioni" +
                                 " avvenuta con successo", currentArg1, currentArg2));
+                        break;
                     }
                     case SHARE:{
                         System.out.println(String.format("[Turing] >> Condivisione del documento |%s| con l'utente " +
                                 "|%s| avvenuto con successo", currentArg1, currentArg2));
+                        break;
                     }
                     case SHOW_DOCUMENT:{
                         System.out.println(String.format("[Turing] >> Contenuto del documento |%s|:", currentArg1));
                         //@TODO APRIRE TUTTE LE SEZIONI DEL DOCUMENTO RICHIESTO
+                        break;
                     }
                     case SHOW_SECTION:{
                         System.out.println(String.format("[Turing] >> Contenuto della sezione |%s| del documento" +
                                 " |%s|:", currentArg2, currentArg1));
                         //@TODO APRIRE LA SEZIONE RICHIESTA
+                        break;
                     }
                     case LIST:{
                         System.out.println("[Turing] >> Recap tuoi documenti");
                         System.out.println(responseBody);  //@TODO SPLIT PER STAMPARE CONTENUTO
+                        break;
                     }
                     case EDIT:{
                         System.out.println(String.format("[Turing] >> Inizio modifica della sezione |%s| del" +
                                 " documento |%s|", currentArg2, currentArg1));
                         //@TODO APRIRE EDITOR PER EDITARE LA SEZIONE
+                        break;
                     }
                     case END_EDIT:{
                         System.out.println(String.format("[Turing] >> Fine modifica della sezione |%s| del" +
                                 " documento |%s|", currentArg2, currentArg1));
                         //@TODO SALVATAGGIO SEZIONE E CHIUSUA EDITOR (se non gia' fatta)
+                        break;
                     }
                     case SEND:{
                         System.out.println("[Turing] >> Invio messaggio sulla Chat avvenuto con successo");
+                        break;
                     }
                     case RECEIVE:{
                         System.out.println("[Turing] >> Hai un nuovo messaggio sulla Chat");
                         System.out.println(responseBody);
                         //@TODO DECIDERE LIMITE HISTORY
+                        break;
                     }
                 }
             }
             case  OP_INVALID_REQUEST:{
                 //non si verifica mai, ma inserito qui per scrupolo qual'ora check del parsing locale del Client fallise
                 System.err.println("[ERR] >> Richiesta non rientra nei servizi offerti");
+                break;
             }
             case OP_USER_NOT_ONLINE:{
                 System.err.println(String.format("[ERR] >> Utente |%s| NON connesso.", currentArg1));
+                break;
             }
             case OP_USER_NOT_REGISTERED:{
                 System.err.println(String.format("[ERR] >> Utente |%s| NON registrato.", currentArg1));
+                break;
             }
             case OP_DOCUMENT_NOT_EXIST:{
                 System.err.println(String.format("[ERR] >> Documento |%s| NON esistente.", currentArg1));
+                break;
             }
             case OP_SECTION_NOT_EXIST:{
                 System.err.println(String.format("[ERR] >> Sezione |%s| del documento |%s| NON " +
                         "registrato.", currentArg2, currentArg1));
-            }
-            case OP_USERNAME_INAVLID_CHARACTERS:{
-                System.err.println(String.format("[ERR] >> Username |%s| NON valido. Il nome utente non puo' contentere" +
-                        ": ['\\\\', '/', ':', '*', '?', '\"', '<', '>', '|']", currentArg1));
-            }
-            case OP_USERNAME_TOO_SHORT:{
-                System.err.println(String.format("[ERR] >> Username |%s| troppo corto.", currentArg1));
-            }
-            case OP_USERNAME_TOO_LONG:{
-                System.err.println(String.format("[ERR] >> Username |%s| troppo lungo.", currentArg1));
-            }
-            case OP_PASSWORD_TOO_SHORT:{
-                System.err.println(String.format("[ERR] >> Password |%s| troppo corta.", currentArg2));
-            }
-            case OP_PASSWORD_TOO_LONG:{
-                System.err.println(String.format("[ERR] >> Password |%s| troppo lunga.", currentArg2));
+                break;
             }
             case OP_DOCUMENT_TOO_SHORT:{
                 System.err.println(String.format("[ERR] >> Nome documento |%s| troppo corto.", currentArg1));
+                break;
             }
             case OP_DOCUMENT_TOO_LONG:{
-                System.err.println(String.format("[ERR] >> Nome documento |%s| troppo corto.", currentArg1));
+                System.err.println(String.format("[ERR] >> Nome documento |%s| troppo lungo.", currentArg1));
+                break;
             }
             case OP_SECTION_EXCEED_LIMIT:{
                 System.err.println(String.format("[ERR] >> Numero sezioni |%s| eccede il valore consentito.", currentArg1));
-            }
-            case OP_USERNAME_ALREADY_TAKEN:{
-                System.err.println(String.format("[ERR] >> Username |%s| GIA' in uso.", currentArg1));
-            }
-            case OP_USER_MUST_LOGOUT:{
-                System.err.println("[ERR] >> Devi prima fare il logout per poterti registrate con un altro account.");
+                break;
             }
             case OP_USER_ALREADY_ONLINE:{
                 System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", currentArg1));
+                break;
             }
             case OP_PASSWORD_INCORRECT:{
                 System.err.println(String.format("[ERR] >> Password |%s| ERRATO.", currentArg2));
+                break;
             }
             case OP_DOCUMENT_ALREADY_EXIST:{
                 System.err.println(String.format("[ERR] >> Documento |%s| GIA' esistente.", currentArg1));
+                break;
             }
             case OP_USER_NOT_CREATOR:{
                 System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
                         " documento |%s|. Per farlo devi essere il suo creatore.", currentArg2, currentArg1));
+                break;
             }
             case OP_USER_IS_DEST:{
-                System.err.println(String.format("[ERR] >> Non puoi invitare te stesso a collaborare al documento |%s|.", currentArg1));
+                System.err.println(String.format("[ERR] >> Non puoi invitare te stesso a collaborare al documento |%s|.",
+                                                                                                        currentArg1));
+                break;
             }
             case OP_DEST_ALREADY_CONTRIBUTOR:{
                 System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
                         " documento |%s|, perche' e' gia' collaboratore / creatore.", currentArg2, currentArg1));
+                break;
             }
             case OP_DEST_NOT_REGISTERED:{
                 System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
                         " documento |%s|. L'utente NON e' registrato alla nostra piattaforma.", currentArg2, currentArg1));
+                break;
             }
             case OP_USER_NOT_ALLOWED_TO_EDIT:{
                 System.err.println(String.format("[ERR] >> Non puoi editare la sezione|%s| del documento|%s|."
                         + "Per farlo devi essere suo creatore / collaboratore.", currentArg2, currentArg1));
+                break;
             }
             case OP_SECTION_ALREADY_IN_EDITING_MODE:{
                 System.err.println(String.format("[ERR] >> Non puoi editare la sezione|%s| del documento|%s|."
                         + "Sezione e' gia' editata da qualcuno.", currentArg2, currentArg1));
+                break;
             }
             case OP_SECTION_NOT_IN_EDITING_MODE:{
                 System.err.println(String.format("[ERR] >> Non puoi finire di fare l'editing della sezione|%s| del documento|%s|."
                         + "Sezione non settata per l'editing precedentemente.", currentArg2, currentArg1));
+                break;
             }
-            default:
-                //return FunctionOutcome.FAILURE;
         }
 
         return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
