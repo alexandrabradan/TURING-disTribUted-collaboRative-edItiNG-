@@ -1,16 +1,23 @@
-public class TuringWorker extends Thread{
-    private TuringTask turingTask;
-    private ServerConfigurationsManagement configurationsManagement;
-    private FileManagement fileManagement;
+import java.nio.channels.SocketChannel;
+
+public class TuringWorker implements Runnable{
+    private ServerConfigurationsManagement configurationsManagement; //classe che contiene variabili di configurazione
+    private ServerDataStructures dataStructures; //classe che contiene strutture dati del Server
+    private TuringTask turingTask; //classe che contiene metodi per gestire e soddisfare richieste/tasks
+    private SocketChannel client;  //SocketChannel del Client di cui bisogna leggere richiesta
+    private FileManagement fileManagement; //classe per gestire files e directories
     private CommandType currentCommand; //commando corrente letto da  tastiera
     private String currentArg1;  //eventuale argomento 1 del comando
     private String currentArg2;  //eventuale argomento 2 del comando
 
-    public TuringWorker(){
-        this.turingTask = new TuringTask();
-        this.configurationsManagement = new ServerConfigurationsManagement();
-        this.fileManagement = new FileManagement();
+    public TuringWorker(ServerConfigurationsManagement configurationsManagement, ServerDataStructures dataStructures,
+                                                                                                SocketChannel client){
+        this.configurationsManagement = configurationsManagement;
+        this.dataStructures = dataStructures;
+        this.client = client;
+        this.turingTask = new TuringTask(configurationsManagement, dataStructures, client);
 
+        this.fileManagement = new FileManagement();
         this.currentCommand = CommandType.HELP;
         this.currentArg1 = "";
         this.currentArg2 = "";
@@ -132,36 +139,6 @@ public class TuringWorker extends Thread{
 
     private ServerResponse satisfyRequest(CommandType command, String arg1, String arg2){
         switch(command){
-            case REGISTER:{
-                //verifico se username supera numero minimp caratteri consentito
-                FunctionOutcome check = checkMinNumCharactersArg(arg1);
-                if(check == FunctionOutcome.SUCCESS){ //numero caratteri lecito
-                    //verifico se username supera numero massimo caratteri consentito
-                    check = checkMaxNumCharactersArg(arg1);
-                    if(check == FunctionOutcome.SUCCESS) { //numero caratteri lecito
-                        //verifico se username contiene solo caratteri alfanumerici
-                        check = this.fileManagement.IsValidFilename(arg1);
-                        if (check == FunctionOutcome.SUCCESS) { //username contiene solo caratteri alfanumerici
-                            //verifico se password supera numero minimo caratteri consentito
-                            check = checkMinNumCharactersArg(arg2);
-                            if(check == FunctionOutcome.SUCCESS){
-                                //verifico se password supera numero massimo caratteri consentito
-                                check = checkMaxNumCharactersArg(arg2);
-                                if (check == FunctionOutcome.SUCCESS) { //numero caratteri lecito
-
-                                    //provo a soddisfare la richiesta del Client e ritorno esito
-                                    return this.turingTask.registrationTask(arg1, arg2);
-                                }
-                                return ServerResponse.OP_PASSWORD_TOO_LOONG; //password troppo lunga
-                            }
-                            else return ServerResponse.OP_PASSWORD_TOO_SHORT; //password troppo corta
-                        }
-                        else return ServerResponse.OP_USERNAME_INAVLID_CHARACTERS; //username contiene caratteri speciali
-                    }
-                    else return ServerResponse.OP_USERNAME_TOO_LOONG; //username troppo lungo
-                }
-                else return ServerResponse.OP_USERNAME_TOO_SHOORT; //username troppo corto
-            }
             case LOGIN:{
                 //provo a soddisfare la richiesta del Client e ritorno esito
                 return this.turingTask.loginTask(arg1, arg2);
@@ -183,7 +160,7 @@ public class TuringWorker extends Thread{
                     }
                     else return ServerResponse.OP_SECTION_EXCEED_LIMIT;
                 }
-                else return ServerResponse.OP_DOCUMENT_TOO_LOONG;
+                else return ServerResponse.OP_DOCUMENT_TOO_LONG;
             }
             case SHARE:{
                 //provo a soddisfare la richiesta del Client e ritorno esito
@@ -231,9 +208,10 @@ public class TuringWorker extends Thread{
             //@TODO leggo richiesta - la estrappolo dalla TaskQueue
             //ricavo richiesta ed eventuali argomenti, facendo il parsing del contenuto letto
             parseRequest("");
+
             //a seconda della richiesta/comando letto verifico legittimita' argomenti
             //1. se argomenti non sono legittimi, invio msg di errore al Client
-            //2. se argomenti sono legittimi, proveddo a soddisfare richiesta ed invio esito task al Client
+            //2. se argomenti sono legittimi, proveddo a soddisfare richiesta ed suo invio esito al Client
             ServerResponse serverResponse = satisfyRequest(this.currentCommand, this.currentArg1, this.currentArg2);
         }
     }

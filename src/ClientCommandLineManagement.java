@@ -179,22 +179,21 @@ public class ClientCommandLineManagement {
                             }
                             case("login"):{
                                 //verifico se c'e' l'username e la password
-                                String correctCommandToPrint = "login";
+                                String correctCommandToPrint = "login <username> <password>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.LOGIN);
                             }
                             case("logout"):{
-                                //verifico se c'e' l'username e la password
                                 String correctCommandToPrint = "logout";
                                 return checkEmptyARGRequest(commandWords, correctCommandToPrint, CommandType.LOGOUT);
                             }
                             case("create"):{
                                 //verifico se c'e' nome documento e numero sezioni
-                                String correctCommandToPrint = "register <doc> <numsezioni>";
+                                String correctCommandToPrint = "create <doc> <numsezioni>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.CREATE);
                             }
                             case("share"):{
                                 //verifico se c'e' il documento e l'username per la condivisione
-                                String correctCommandToPrint = "share <username> <password>";
+                                String correctCommandToPrint = "share <doc> <username>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.SHARE);
                             }
                             case("show"):{
@@ -208,6 +207,12 @@ public class ClientCommandLineManagement {
                                 else if(commandWordsLength >= 4) {  //esiste anche sezione del documento
                                     String correctCommandToPrint = "show <doc> <sec>";
                                     return checkTwoARGSRequest(commandWords, correctCommandToPrint, CommandType.SHOW_SECTION);
+                                }
+                                else{
+                                    System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
+                                    System.out.println("[Turing] >> turing show <doc> OPPURE turing show <doc> <sec>");
+                                    System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
+                                    return readAndParseCommand();
                                 }
                             }
                             case("list"):{
@@ -228,7 +233,7 @@ public class ClientCommandLineManagement {
                             case("send"):{
                                 //verifico se c'e messaggio da inviare
                                 String correctCommandToPrint = "send <msg>";
-                                return checkOneARGRequest(commandWords, correctCommandToPrint, CommandType.SEND);
+                                return checkSendMessage(commandWords, correctCommandToPrint, CommandType.SEND);
                             }
                             case "receive":{
                                 //verifico se dopo il receive ci sono ancora parole
@@ -241,7 +246,7 @@ public class ClientCommandLineManagement {
                                 return checkEmptyARGRequest(commandWords, correctCommandToPrint, CommandType.EXIT);
                             }
                             default:
-                                System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
+                                System.err.println("[Turing] >> Comando inesistente.");
                                 System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
                                 System.out.println("[Turing] >> turing --help");
                                 System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
@@ -310,7 +315,6 @@ public class ClientCommandLineManagement {
     /**
      * Funzione che verifica che i commandi senza argomenti:
      * 1. show <doc>
-     * 2. send <msg>
      * non abbiano parole/argomenti a seguirli
      * @param commandWords parole lette da linea di commando
      * @param correctCommandToPrint messaggio personalizzato da stampare sullo schermo
@@ -318,8 +322,8 @@ public class ClientCommandLineManagement {
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkOneARGRequest(String[] commandWords, String correctCommandToPrint, CommandType commandType){
-        //verifico se esiste documento da mostrare / msg da inviare
-        if(commandWords.length != 3) { //esiste msg
+        //verifico se esiste documento da mostrare
+        if(commandWords.length != 3) { //non esiste documento
             System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
             System.out.println("[Turing] >> turing " + correctCommandToPrint);
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
@@ -327,11 +331,44 @@ public class ClientCommandLineManagement {
         }
         else{ //commando con 1 argomento e' sintatticamente corretto
             setCurrentCommand(commandType);
-            setCurrentArg1( commandWords[2]);
+            setCurrentArg1(commandWords[2]);
             return FunctionOutcome.SUCCESS;
-
-}
+        }
     }
+
+    /**
+     * Funzione che verifica che ci sia un messaggio da inviare sulla chat:
+     * 1. send <msg>
+     * @param commandWords parole lette da linea di commando
+     * @param correctCommandToPrint messaggio personalizzato da stampare sullo schermo
+     * @return SUCCESS se comando e' sintaticamente corretto
+     *         FAILURE altrimenti
+     */
+    private FunctionOutcome checkSendMessage(String[] commandWords, String correctCommandToPrint, CommandType commandType){
+        //verifico se esiste msg da inviare
+        if(commandWords.length == 2) { //non esiste msg
+            System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
+            System.out.println("[Turing] >> turing " + correctCommandToPrint);
+            System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
+            return readAndParseCommand();
+        }
+        else{ //esiste messaggio
+
+            //ricostruisco messaggio letto
+            StringBuilder builder = new StringBuilder();
+            for(int i = 2; i < commandWords.length; i++){
+                builder.append(commandWords[i]);
+                //tra una stringa e l'altra c'e' uno spazio (altrimenti non sarebbero state due celle distinete nell'array)
+                builder.append(" ");
+            }
+            String msg = builder.toString();
+
+            setCurrentCommand(commandType);
+            setCurrentArg1(msg);
+            return FunctionOutcome.SUCCESS;
+        }
+    }
+
     /**
      * Funzione che verifica che i commandi senza argomenti:
      * 1. turing register <username> <password>
@@ -350,7 +387,7 @@ public class ClientCommandLineManagement {
      */
     private FunctionOutcome checkTwoARGSRequest(String[] commandWords, String correctCommandToPrint, CommandType commandType){
         //verifico se esiste documento da mostrare / msg da inviare
-        if(commandWords.length != 3) { //esiste msg
+        if(commandWords.length != 4) { //esiste msg
             System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
             System.out.println("[Turing] >> turing " + correctCommandToPrint);
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
@@ -364,7 +401,7 @@ public class ClientCommandLineManagement {
                 case EDIT:
                 case END_EDIT:{
                     if(!checkIfNumSectionIsNumeric(commandWords[3])){ //num. sezione non e' un valore numerico
-                        System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere un valore numerico:");
+                        System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere un valore numerico positivo:");
                         System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
                         return readAndParseCommand();
                     }
@@ -372,7 +409,7 @@ public class ClientCommandLineManagement {
                         //verifico che numero sezione sia strettamente positivo
                         FunctionOutcome check =  checkIFNumSectionIsStrictlyPositive(Integer.parseInt(commandWords[3]));
                         if(check == FunctionOutcome.FAILURE){
-                            System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere un valore positivo:");
+                            System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere strettamente positivo:");
                             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
                             return readAndParseCommand();
                         }

@@ -5,12 +5,27 @@ import java.util.Set;
 
 public class Document {
 
-    private String document; //nome del documento
-    private String creator; //nome del creatore del documento
+    /**
+     * nome del documento
+     */
+    private String document;
+    /**
+     * nome del creatore del documento
+     */
+    private String creator;
 
-    private Set<String> modifiers; //insieme degli utenti che possono modificare il documento (collaboratori/creatori)
-    private ReentrantLock[] sectionsLockArray; //Array di lock associate al documento (una per ogni sezione)
-    private InetAddress chatAddress;  // indirizzo statico di multicast associato per la chat per questo documento
+    /**
+     * insieme degli utenti che possono modificare il documento (collaboratori/creatori)
+     */
+    private Set<String> modifiers;
+    /**
+     * array di locks per ottenere mutua esclusione accesso sezioni documento
+     */
+    private ReentrantLock[] sectionsLockArray;
+    /**
+     *  indirizzo statico di multicast associato per la chat per questo documento
+     */
+    private InetAddress chatAddress;
 
     /**
      * Costruttore della classe
@@ -23,7 +38,7 @@ public class Document {
         this.document = document;
         this.creator = creator;
 
-        this.modifiers = new LinkedHashSet<String>();
+        this.modifiers = new LinkedHashSet<>();
 
         //inizializzo l'array di locks
         this.sectionsLockArray = new ReentrantLock[numSections];

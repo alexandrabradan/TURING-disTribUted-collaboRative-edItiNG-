@@ -1,10 +1,6 @@
-import org.jetbrains.annotations.NotNull;
-
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 
 public class TuringClient {
     private static String defaultConfFile = "/src/data/turingClient.conf";
@@ -15,6 +11,8 @@ public class TuringClient {
     private static String serverHost;
     private static int serverPort;
     private static InetSocketAddress serverAddress;  //indirizzo e porta del Server a cui connettersi
+
+    private static RequestManagement requestManagement;
 
     /**
      * Ciclo principale che si occupa di:
@@ -125,6 +123,8 @@ public class TuringClient {
      */
     private static FunctionOutcome connectToServer() {
 
+        System.out.println("[Turing] >> Fase di connessione al Server");
+
         //dal file di configurazione ricavo il serverHost e la serverPort
         serverHost = configurationsManagement.getServerHost();
         serverPort = configurationsManagement.getServerPort();
@@ -142,10 +142,13 @@ public class TuringClient {
                 System.out.println("[CLIENT] >> Mi sto connettendo ...");
             }
 
+            //connessione al Server avvenuta con successo => creo istanze per scrivere richieste e leggere risposte
+            requestManagement = new RequestManagement(clientSocket);
+
             return FunctionOutcome.SUCCESS;
 
         } catch (IOException e) {
-            e.printStackTrace();
+            // e.printStackTrace();
             return FunctionOutcome.FAILURE; //impossibile stabilire connessione / timeout scaduto
         }
     }
@@ -162,6 +165,7 @@ public class TuringClient {
 
         while (true) {
 
+            System.out.println();
             System.out.println("[Turing] >> Digita nuovo comando:");
 
             //leggo commando da tastiera
@@ -175,6 +179,9 @@ public class TuringClient {
                     case HELP:{
                         System.out.println();  //spazio dopo aver stampato comando di aiuto
                         continue; //digito comando successivo
+                    }
+                    case EXIT:{
+                        closeClientSocket(); //chiudo client-socket e programma
                     }
                     case REGISTER:{
                         //registro Client al Server tramite stub RMI
@@ -194,16 +201,13 @@ public class TuringClient {
                     case RECEIVE:{
                         //multicast
                     }
-                    case EXIT:{
-                        closeClientSocket(); //chiudo client-socket e programma
-                    }
                     default: //TUTTI CASI SOPRA VUOTI @TODO
                         //recupero eventuali argomenti
                         String currentArg1 = commandLineManagement.getCurrentArg1();
                         String currentArg2 = commandLineManagement.getCurrentArg2();
 
                         //invio richiesta al Server
-                        check = writeRequest(currentCommand, currentArg1, currentArg2);
+                        check = requestManagement.writeRequest(currentCommand, currentArg1, currentArg2);
 
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing >> Impossibile sottomettere la richiesta al Server]");
@@ -211,7 +215,7 @@ public class TuringClient {
                         }
 
                         //attendo risposta dal Server
-                        check = readResponse(currentCommand, currentArg1, currentArg2);
+                        check = requestManagement.readResponse();
 
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing >> Impossibile reperire la risposta del Server]");
@@ -223,239 +227,23 @@ public class TuringClient {
     }
 
     /**
-     * Funzione che si occupa di inviare:
-     * 1. la dimensionde della richiesta al Server (per consentirgli di allocare un buffer di lettura opportuno)
-     * 2. la richiesta al Server
-     * @param command tipo di richiesta
-     * @param arg1 eventuale primo argomento
-     * @param arg2 eventulae secondo argomento
-     * @return SUCCESS se l'invio della dimensione delle richiesta e la richiesta sono andati a buon fine
-     *         FAILURE altrimenti
-     */
-    private static FunctionOutcome writeRequest(CommandType command, String arg1, String arg2){
-        ByteBuffer buffer = ByteBuffer.allocate(4); //contiene dim. richiesta Client => intero => codificato con 4 bytes
-
-        buffer.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
-
-        //costruisco risposta
-        //inserisco degli spazi per distinguere componenti della richiesta
-        String request = command.ordinal() + " " + arg1 + " " + arg2;  //ordinale() => reperisco valore numerico enum
-        int requestLength = request.length(); //ricavo lunghezza della richiesta
-
-        buffer.putInt(requestLength); //inserisco dim. richiesta nel buffer
-
-        buffer.flip(); //modalita' lettura (position=0, limit = bytesWritten)
-
-        //invio  dimensione richiesta al Server
-        while(buffer.hasRemaining()){
-            try {
-                clientSocket.write(buffer);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return FunctionOutcome.FAILURE;
-            }
-        }
-
-        //invio dim. richiesta avvenuta con successo
-        //alloco nuovo buffer per inserirvi richiesta
-        buffer = ByteBuffer.allocate(requestLength);
-
-        buffer.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
-
-        buffer.put(request.getBytes());  //inserisco messaggio di richiesta nel buffer
-
-        buffer.flip(); //modalita' lettura (position=0, limit = bytesWritten)
-
-        //invio richiesta al Server
-        while(buffer.hasRemaining()){
-            try {
-                clientSocket.write(buffer);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return FunctionOutcome.FAILURE;
-            }
-        }
-
-        return FunctionOutcome.SUCCESS; //invio dim. richiesta e richiesta avenuto con successo
-    }
-
-    /**
-     * Funzione che si occupa di leggere:
-     * 1. la dimensionde della risposta del Server (per allocare un buffer di lettura opportuno)
-     * 2. la risposta al Server
-     * @param command tipo di richiesta
-     * @param arg1 eventuale primo argomento
-     * @param arg2 eventulae secondo argomento
-     * @return SUCCESS se la lettura della dimensione delle risposta e la risposta sono andati a buon fine
-     *         FAILURE altrimenti
-     */
-    private static FunctionOutcome readResponse(CommandType command, String arg1, String arg2){
-        ByteBuffer buffer = ByteBuffer.allocate(4); //contiene dim. richiesta Client => intero => codificato con 4 bytes
-
-        buffer.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
-
-        int responseLength = 0;  //lunghezza della risposta
-
-        //leggo dimensione risposta
-        try {
-            while (clientSocket.read(buffer) > 0) {
-                responseLength = buffer.getInt();
-            }
-        }catch (IOException e) {
-            e.printStackTrace();
-            return FunctionOutcome.FAILURE;
-        }
-
-        //alloco nuovo buffer per leggervi risposta, di dimensione letta sopra
-        buffer = ByteBuffer.allocate(responseLength);
-
-        buffer.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
-
-        String respone = "";
-
-        //leggo risposta
-        try {
-            while (clientSocket.read(buffer) > 0) {
-                buffer.flip();  //modalita' lettura (position=0, limit = bytesWritten)
-                respone = new String(buffer.array(), StandardCharsets.UTF_8);
-                buffer.clear(); //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
-            }
-        }catch (IOException e) {
-            e.printStackTrace();
-            return FunctionOutcome.FAILURE;
-        }
-        return manageResponse(respone, command, arg1, arg2); //lettura risposta avvenuta con sucesso => stampa personalizzata
-    }
-
-    /**
-     * Funzione che stampa la risposta personalizzata del Server alla richiesta fatta dal Client
-     * @param respone risposta del Server (sottofroma di enum "ServerResponse")
-     * @param command tipo di richiesta
-     * @param arg1 eventuale primo argomento
-     * @param arg2 eventulae secondo argomento
-     * @return SUCCESS se la lettura della dimensione delle risposta e la risposta sono andati a buon fine
-     */
-    private static FunctionOutcome manageResponse(String respone, CommandType command, String arg1, String arg2){
-
-        //a seconda del comando richiesto posso avere differenti risposte di successo/fallimento da parte del Server
-        // verifico che cosa mi ha risposto il Server  ed in base a cio', stampo un messaggio di esito
-        ServerResponse serverResponse = ServerResponse.valueOf(respone);  //converto stringa in enum
-        switch (serverResponse){
-            case OP_OK:{  //discrimino quale operazione ha avuto successo
-                switch (command){
-                    case REGISTER: {
-                        System.out.println(String.format("[Turing] >> Registrazione dell'utente |%s| avvenuta con " +
-                                                                                                    "successo", arg1));
-                    }
-                    case LOGIN:{
-                        System.out.println("[Turing] >> Login avvenuto con successo");
-                    }
-                    case LOGOUT:{
-                        System.out.println(String.format("[Turing] >> Logout dell'utente |%s| avvenuto con " +
-                                                                                                    "successo", arg1));
-                    }
-                    case CREATE:{
-                        System.out.println(String.format("[Turing] >> Creazione del documento |%s| con |%s| sezioni" +
-                                                                                " avvenuta con successo", arg1, arg2));
-                    }
-                    case SHARE:{
-                        System.out.println(String.format("[Turing] >> Condivisione del documento |%s| con l'utente " +
-                                                                            "|%s| avvenuto con successo", arg1, arg2));
-                    }
-                    case SHOW_DOCUMENT:{
-                        System.out.println(String.format("[Turing] >> Contenuto del documento |%s|:", arg1));
-                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
-                    }
-                    case SHOW_SECTION:{
-                        System.out.println(String.format("[Turing] >> Contenuto della sezione |%s| del documento" +
-                                                                                                " |%s|:", arg2, arg1));
-                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
-                    }
-                    case LIST:{
-                        System.out.println("[Turing] >> Recap tuoi documenti");
-                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
-                    }
-                    case EDIT:{
-                        System.out.println(String.format("[Turing] >> Inizio modifica della sezione |%s| del" +
-                                                                                        " documento |%s|", arg2, arg1));
-                    }
-                    case END_EDIT:{
-                        System.out.println(String.format("[Turing] >> Fine modifica della sezione |%s| del" +
-                                                                                        " documento |%s|", arg2, arg1));
-                    }
-                    case SEND:{
-                        System.out.println("[Turing] >> Invio messaggio sulla Chat avvenuto corretamente");
-                    }
-                    case RECEIVE:{
-                        System.out.println("[Turing] >> Hai un nuovo messaggio sulla Chat");
-                        System.out.println(respone);  //@TODO SPLIT PER STAMPARE CONTENUTO
-                    }
-                }
-            }
-            case OP_USER_NOT_ONLINE:{
-                System.err.println(String.format("[ERR] >> Utente |%s| NON connesso.", arg1));
-            }
-            case OP_USER_NOT_REGISTERED:{
-                System.err.println(String.format("[ERR] >> Utente |%s| NON registrato.", arg1));
-            }
-            case OP_DOCUMENT_NOT_EXIST:{
-                System.err.println(String.format("[ERR] >> Documento |%s| NON esistente.", arg1));
-            }
-            case OP_SECTION_NOT_EXIST:{
-                System.err.println(String.format("[ERR] >> Sezione |%s| del documento |%s| NON " +
-                                                                                            "registrato.", arg2, arg1));
-            }
-            case OP_USERNAME_ALREADY_TAKEN:{
-                System.err.println(String.format("[ERR] >> Username |%s| GIA' in uso.", arg1));
-            }
-            case OP_USER_MUST_LOGOUT:{
-                System.err.println("[ERR] >> Devi prima fare il logout per poterti registrate con un altro account.");
-            }
-            case OP_USER_ALREADY_ONLINE:{
-                System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", arg1));
-            }
-            case OP_PASSWORD_INCORRECT:{
-                System.err.println(String.format("[ERR] >> Password |%s| ERRATO.", arg2));
-            }
-            case OP_DOCUMENT_ALREADY_EXIST:{
-                System.err.println(String.format("[ERR] >> Documento |%s| GIA' esistente.", arg1));
-            }
-            case OP_USER_NOT_CREATOR:{
-                System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
-                                            " documento |%s|. Per farlo devi essere il suo creatore.", arg2, arg1));
-            }
-            case OP_USER_IS_DEST:{
-                System.err.println(String.format("[ERR] >> Non puoi invitare te stesso a collaborare al documento |%s|.", arg1));
-            }
-            case OP_DEST_ALREADY_CONTRIBUTOR:{
-                System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
-                        " documento |%s|, perche' e' gia' collaboratore / collaboratore.", arg2, arg1)); //@TODO VERIFICARE CHE SIA COLLABORATORE
-            }
-            case OP_DEST_NOT_REGISTERED:{
-                System.err.println(String.format("[ERR] >> Non puoi invitare l'utente |%s| a collaborare al" +
-                        " documento |%s|. L'utente NON e' registrato alla nostra piattaforma.", arg2, arg1));
-            }
-            default:
-                //return FunctionOutcome.FAILURE;
-        }
-
-        return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
-    }
-
-    /**
      * Funzione che fa terminare il Client, chiudendo il suo client-socket quando sopraggiunge il comando:
      * <<turing exit>>
      */
     private static void closeClientSocket(){
-        try {
-            clientSocket.close();
+        //controllo che il SocketChannel sia stato inizializzato, altrimenti esco semplicemente
+        if(clientSocket != null){
+            try {
+                clientSocket.close();
 
-            System.exit(0);
+                System.exit(0);
 
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.err.println("[ERR] >> Impossibile chiudere client-socket");
-            System.exit(-1);
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.err.println("[ERR] >> Impossibile chiudere client-socket");
+                System.exit(-1);
+            }
         }
+        else System.exit(0);
     }
 }

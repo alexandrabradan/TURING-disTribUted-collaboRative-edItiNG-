@@ -91,13 +91,27 @@ public class ServerDataStructures {
     //********************************METODI PER GESTIRE INSIEME UTENTI ONLINE***************************************//
 
     /**
-     * Funzione che controlla se l'utente e' online o meno (e' connesso)
+     * Funzione che restituisce l'username/valore associato al SocketChannel/chiave il cui scopo e' verificare se
+     * il SocketChannel passato come argomento e' associato ad un utente online o meno
+     * @param client SocketChannel di cui verificare la connessione
+     * @return username associato al SocketChannel, se il SocketChannel esiste nella ht e rapprenseta un utente onlie
+     *         null se il SocketChannel e' presente nella ht (non rappresenta nessun utente online)
+     */
+    public String checkIfSocketChannelIsOnline(SocketChannel client){
+        //verifico se Client e' connesso, provando a reperire il valore associato ad esso
+        return online_users.get(client);
+    }
+
+    /**
+     * Funzione che controlla se l'utente e' online o meno (e' connesso) con qualche Client
      * @param username username dell'utente da controllare se e' online o meno
      * @return true se l'utente e' connesso
      *   	   false altrimenti
      */
     public boolean checkIfUserIsOnline(String username) {
-        return online_users.contains(username);
+       //verifico che esiste qualche chiave/SocketChannel che ha come valore l'username di cui
+        //voglio verificare connessione o meno (N.B. utente si puo' connettere con Clients diversi al servizio)
+        return this.online_users.containsValue(username);
     }
 
     /**
@@ -106,20 +120,37 @@ public class ServerDataStructures {
      * @param username utente di cui cambiare lo stato
      */
     public void putToOnlineUsers(SocketChannel client, String username) {
-        //aggiungo utente all'insieme utenti online
+        //aggiungo SocketChannel dell'utente e l'utente nella ht degli utenti online
         online_users.put(client, username);
     }
 
     /**
      * Funzione che disconnette un utente (lo rimuove dagli utenti online)
      * @param client  socketchannel dell'utente di cui bisogna cambiare lo stato
+     * @return username associato al SocketChannel, se il SocketChannel esiste nella ht
+     *         null altrimenti
      */
-    public void removeFromOnlineUsers(SocketChannel client) {
-        //rimuovo utente dall'insieme utenti online
-        online_users.remove(client);
+    public String removeFromOnlineUsers(SocketChannel client) {
+        //rimuovo SocketChannel dell'utente e l'utente dalla  dalla ht utenti online
+        return online_users.remove(client);
     }
 
     //**********************METODI PER GESTIRE INSIEME INDIRIZZI DI MULTICAST***************************************//
+
+    /**
+     * Funzione che preleva il primo indirizzo di multicast disponibile per poterlo assegnare ad un documento
+     * appena creato
+     * @return indirizzo di multicast da assegnare alla chat di un nuovo documento
+     *         null se subentra qualche errore
+     */
+    public InetAddress getMulticastAddress(){
+        try {
+            return this.multicast_set.take(); //prelevo primo indirizzo di multicast disponibile
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 
     /**
      * Funzione che controlla se l'indirizzo e' presente nell'insieme degli indirizzi di multicast o meno

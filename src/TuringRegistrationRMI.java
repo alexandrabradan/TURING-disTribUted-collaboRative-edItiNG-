@@ -1,59 +1,132 @@
 import java.rmi.RemoteException;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Classe che implementa l'interfaccia di registrazione, ossia l'implementazione dei metodi del servizio remoto
  */
 public class TuringRegistrationRMI implements TuringRegistrationInterface {
-    private Set<String> onlineUsers;
-    private ConcurrentHashMap<String,User> hash_users;
+    private ServerConfigurationsManagement serverConfigurationsManagement;
+    private ServerDataStructures serverDataStructures;
+    private FileManagement fileManagement;
 
     /**
      * Costruttore della classe "TuringRegistrationRMI"
-     * @param onlineUsers insieme degli utenti online
-     * @param hash_users tabella hash che rappresenta il database degli utenti
+     * @param configurationsManagement classe che contiene le variabili di configurazione del Server
+     * @param dataStructures classe che contiene le strutture dati del Server
      */
-    protected TuringRegistrationRMI(Set<String> onlineUsers, ConcurrentHashMap<String,User> hash_users) {
-        this.onlineUsers = onlineUsers;
-        this.hash_users = hash_users;
+    public TuringRegistrationRMI(ServerConfigurationsManagement configurationsManagement, ServerDataStructures dataStructures) {
+        this.serverConfigurationsManagement = configurationsManagement;
+        this.serverDataStructures = dataStructures;
+        this.fileManagement = new FileManagement();
     }
 
     /**
-     * Funzione che consente ad un utente di registrarsi al servizio
-     * @param username nome dell'utente
-     * @param password password associata al nome
-     * @return OP_OK se l'utente è stato registrato
-     * 		   OP_REGISTER_USERNAME_ALREADY_TAKEN se l'utente era già registrato
-     * 		   OP_REGISTER_USER_ALREADY_ONLINE bisogna prima fare logout per registrare nuovo utente
-     * @throws RemoteException I metodi remoti devono dichiarare di sollevare eccezioni remote
-     *
-     * MUTAUA ESCLUSIONE IMPLICITA SULLE STRUTTURE DATI:
-     * a) BlockingQueue : coda utenti online
-     * b) ConcurrentHashTable : database utenti registrati al servizio
+     * Funzione che verifica se l'username/password/documento passato come argomento rientra nel range stabilito dal file
+     * di configurazione o meno
+     * @param argument username/password/documento da verificare
+     * @return SUCCESS se username/password/documento e' lecito
+     *         FAILURE altrimenti
      */
-    public synchronized ServerResponse registerUser(String username, String password) throws RemoteException {
-        // posso registrare un nuovo utente solo se NON:
-        // 1. e' online => DEVE FARE LOGOUT PRIMA
-        // 2. e' gia' registrato => SCEGLIERE ALTRO USERNAME
-        if (!onlineUsers.contains(username)) {  //utente non e' loggato
+    private FunctionOutcome checkMinNumCharactersArg(String argument){
+        int maxNumCharactersArg = this.serverConfigurationsManagement.getMinNumCharactersArg();
+        if(argument.length() < maxNumCharactersArg)
+            return FunctionOutcome.FAILURE;  //argomento inferiore num. minimo caratteri consentito
+        else
+            return FunctionOutcome.SUCCESS;  //argomento non inferiore num. minimo caratteri consentito
+    }
 
-            //verifico se posso registrare utente (username NON deve essere gia' stato preso)
-            boolean check = hash_users.containsKey(username);
+    /**
+     * Funzione che verifica se l'username/password/documento passato come argomento rientra nel range stabilito dal file
+     * di configurazione o meno
+     * @param argument username/password/documento da verificare
+     * @return SUCCESS se username/password/documento e' lecito
+     *         FAILURE altrimenti
+     */
+    private FunctionOutcome checkMaxNumCharactersArg(String argument){
+        int maxNumCharactersArg = this.serverConfigurationsManagement.getMaxNumCharactersArg();
+        if(argument.length() > maxNumCharactersArg)
+            return FunctionOutcome.FAILURE;  //argomento supera num. caratteri consentito
+        else
+            return FunctionOutcome.SUCCESS;  //argomento non supera num.caratteri consentito
+    }
 
-            if (check) {  //username gia' in uso => utente gia' registrato
-                return ServerResponse.OP_USERNAME_ALREADY_TAKEN;
-            } else {  //utente non registratrato
-                //creo utente
-                User u = new User(username, password);
+    /**
+     * Funzione che verifica se il numero di sezione passato come argomento rientra nel range stabilito dal file
+     * di configurazione o meno
+     * @param numSections numero di sezione da verificare
+     * @return SUCCESS se il numero di sezione e' lecito
+     *         FAILURE altrimenti
+     */
+    private  FunctionOutcome checkMaxNumSectionsPerDocument(int numSections){
+        int maxNumSectionsPerDocument = this.serverConfigurationsManagement.getMaxNumSectionsPerDocument();
+        if(numSections > maxNumSectionsPerDocument)
+            return FunctionOutcome.FAILURE;  //numero sezioni supera valore consentito
+        else
+            return FunctionOutcome.SUCCESS;  //numero sezioni non supera valore consentito
+    }
 
-                //inserisco utente nella hash_users
-                this.hash_users.put(username, u);
+    /**
+     * Funzione che si occupa di soddisfare la richiesta di registrazione di un utente
+     * @param username nome dell'utente da registrare
+     * @param password password del nuovo utente da registrare
+     * @return OP_OK se e' stato possibile registrare l'utente
+     *         OP_USERNAME_ALREADY_TAKEN  se esiste gia' un username registrato al servizio con questo username
+     *         OP_USER_MUST_LOGOUT se il Client che richiede la registrazione e' connesso (per effettuare una
+     *         registrazione bisogna essere sloggati)
+     */
+    public synchronized ServerResponse registerTask(String username, String password) throws RemoteException {
 
-                return ServerResponse.OP_OK;
+        //verifico se username supera numero minimp caratteri consentito
+        FunctionOutcome check = checkMinNumCharactersArg(username);
+        if(check == FunctionOutcome.SUCCESS){ //numero caratteri lecito
+            //verifico se username supera numero massimo caratteri consentito
+            check = checkMaxNumCharactersArg(username);
+            if(check == FunctionOutcome.SUCCESS) { //numero caratteri lecito
+                //verifico se username contiene solo caratteri alfanumerici
+                check = this.fileManagement.IsValidFilename(username);
+                if (check == FunctionOutcome.SUCCESS) { //username contiene solo caratteri alfanumerici
+                    //verifico se password supera numero minimo caratteri consentito
+                    check = checkMinNumCharactersArg(password);
+                    if(check == FunctionOutcome.SUCCESS){
+                        //verifico se password supera numero massimo caratteri consentito
+                        check = checkMaxNumCharactersArg(password);
+                        if (check == FunctionOutcome.SUCCESS) { //numero caratteri lecito
+
+                            //provo a soddisfare la richiesta del Client e ritorno esito
+                            //verifico che l'utente NON sia connesso (Client deve fare logout per potersi registrare con nuovo username)
+                            boolean online = this.serverDataStructures.checkIfUserIsOnline(username);
+                            if(online)
+                                return ServerResponse.OP_USER_MUST_LOGOUT; //utente connesso
+
+                            //utente e' disconesso => verifico se username e' gia' stato preso da qualche altro utente
+                            boolean alreadyTaken = this.serverDataStructures.checkIfUserIsRegister(username);
+                            if(alreadyTaken)
+                                return ServerResponse.OP_USERNAME_ALREADY_TAKEN; //username gia' in uso
+
+                            //username non e' stato preso
+                            //creo istanza dell'utente da registrare e da inserire nella HashTable
+                            User newUser = new User(username, password);
+                            this.serverDataStructures.insertHashUser(username, newUser);
+
+                            //creo cartella in cui memorizzare i documenti dell'utente da salvare
+                            //creo cartella in cui memorizzare i documenti che l'utente sta editando
+                            //N.B. cartelle prendono il nome dell'utente perche' usernames e' univoco => nome cartelle univoci
+                            String userSaveDirectoryPath = this.serverConfigurationsManagement.getServerSaveDocumentsDirectory() + username + "/";
+                            String userEditDirectoryPath = this.serverConfigurationsManagement.getServerSaveDocumentsDirectory() + username + "/";
+                            this.fileManagement.createDirectory(userEditDirectoryPath);
+                            this.fileManagement.createDirectory(userSaveDirectoryPath);
+
+                            return ServerResponse.OP_OK; //utente registrato con successo
+                        }
+                        return ServerResponse.OP_PASSWORD_TOO_LONG; //password troppo lunga
+                    }
+                    else return ServerResponse.OP_PASSWORD_TOO_SHORT; //password troppo corta
+                }
+                else return ServerResponse.OP_USERNAME_INAVLID_CHARACTERS; //username contiene caratteri speciali
             }
+            else return ServerResponse.OP_USERNAME_TOO_LONG; //username troppo lungo
         }
-        else  //utente e' logato => deve fare logout per poter fare nuova registrazione
-            return ServerResponse.OP_USER_ALREADY_ONLINE;
+        else return ServerResponse.OP_USERNAME_TOO_SHORT; //username troppo corto
+
+        //@TODO incapsulare risposta in un msg da inviare al Client
     }
 }

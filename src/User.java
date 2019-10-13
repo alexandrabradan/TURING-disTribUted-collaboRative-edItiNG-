@@ -2,15 +2,27 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class User {
-    //insieme dei documenti che utente puo' modificare (perche' ne e' collaboratore/creatore)
-    private Set<String> set_doc;
-    //insieme dei documenti a cui l'utente è stato invitato a modificare, mentre era offline
-    private Set<String> set_pendingDocs;
-    // Insieme dei documenti a cui l'utente è stato invitato a modificare, mentre era online
-    private Set<String> set_liveDocs;
 
-    private String username; //univoco
+    /**
+     * nickname dell'utente(univoco)
+     */
+    private String username;
+    /**
+     * password dell'utente
+     */
     private String password;
+    /**
+     * insieme dei documenti che utente puo' modificare (perche' ne e' collaboratore/creatore)
+     */
+    private Set<String> set_docs;
+    /**
+     * insieme dei documenti a cui l'utente è stato invitato a modificare, mentre era offline
+     */
+    private Set<String> set_pendingDocs;
+    /**
+     *  insieme dei documenti a cui l'utente è stato invitato a modificare, mentre era online
+     */
+    private Set<String> set_liveDocs;
 
     /**
      * Costruttore della classe User
@@ -18,9 +30,9 @@ public class User {
      * @param password password associata all'utente
      */
     public User(String username, String password) {
-        this.set_doc = new LinkedHashSet<String>();
-        this.set_pendingDocs = new LinkedHashSet<String>();
-        this.set_liveDocs = new LinkedHashSet<String>();
+        this.set_docs = new LinkedHashSet<>();
+        this.set_pendingDocs = new LinkedHashSet<>();
+        this.set_liveDocs = new LinkedHashSet<>();
 
         this.username = username;
         this.password = password;
@@ -44,7 +56,8 @@ public class User {
 
     /**
      * Funzione che valida la password inserita dall'utente al momento della connessione al servizio
-     * (la password inserita deve essere equivalente a quella asssociata all'utente nella ht_users)
+     * (la password inserita deve essere equivalente a quella asssociata all'utente nella ht_users, nel momento
+     * di registrazione)
      * @param password passowrd inserita
      * @return true se le password corrispondono
      *  		false altrimenti
@@ -56,10 +69,10 @@ public class User {
 
     /**
      * Funzione che restituisce l'insieme dei documenti modificabili dall'utente (perche' ne e' collaboartore/creatore)
-     * @return this.set_doc
+     * @return this.set_docs
      */
-    public synchronized Set<String> getSetDoc() {
-        return this.set_doc;
+    public synchronized Set<String> getSetDocs() {
+        return this.set_docs;
     }
 
     /**
@@ -81,17 +94,17 @@ public class User {
     /**
      * Funzione che restituisce l'insieme dei documenti modificabili dall'utente (perche' ne e' collaboartore/creatore),
      * sottoforma di array
+     * N.B. metodo viene utilizzato per commando <<list>>>
      * @return this.set_doc.toArray()
      */
-    public synchronized Object[] getSetDocsToArray() {
-        return this.set_doc.toArray();
+    public synchronized String[] getSetDocsToArray() {return (String[])this.set_docs.toArray();
     }
 
     /** Funzione che aggiunge un documento all'insieme dei documenti che l'utente può editare
      * @param document documento da aggiungere
      */
     public synchronized void addSetDoc(String document) {
-        this.set_doc.add(document);
+        this.set_docs.add(document);
     }
 
     /**
@@ -119,7 +132,7 @@ public class User {
      *  	   false altrimenti
      */
     public synchronized boolean documentIsInSetDocs(String document) {
-        return this.set_doc.contains(document);
+        return this.set_docs.contains(document);
     }
 
     /**

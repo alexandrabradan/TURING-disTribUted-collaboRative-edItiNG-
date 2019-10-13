@@ -9,7 +9,6 @@ public class ClientConfigurationManagement {
     private String serverHost; //DNS name server
     private int serverPort; //porta su cui Server e' in ascolto
     private int RMIPort; //porta utilizzata per gli inviti
-    private int multicastPort; //porta utilizzata per i gruppi di chat
     private int connectionTimeout; //tempo attesa connessione Server / "receive" UDP chat multicast
     private String clientsDownloadsDocumentsDirectory; //cartella nella quale Clients salvano loro files
 
@@ -20,7 +19,6 @@ public class ClientConfigurationManagement {
         this.serverHost = "";
         this.serverPort = -1;
         this.RMIPort = -1;
-        this.multicastPort = -1;
         this.connectionTimeout = -1;
         this.clientsDownloadsDocumentsDirectory = "";
     }
@@ -47,14 +45,6 @@ public class ClientConfigurationManagement {
      */
     public int getRMIPort(){
         return this.RMIPort;
-    }
-
-    /**
-     * Funzione che restituisce la porta utilizzata per i gruppi di chat
-     * @return porta utilizzata per i gruppi di chat
-     */
-    public int getMulticastPort(){
-        return this.multicastPort;
     }
 
     /**
@@ -120,9 +110,6 @@ public class ClientConfigurationManagement {
                         case "RMIPort":
                             this.RMIPort = Integer.parseInt(value);
                             break;
-                        case "multicastPort":
-                            this.multicastPort = Integer.parseInt(value);
-                            break;
                         case "connectionTimeout":
                             this.connectionTimeout = Integer.parseInt(value);
                             break;
@@ -165,10 +152,6 @@ public class ClientConfigurationManagement {
         }
         else if(this.RMIPort <= 1024){
             System.err.println("[ERR] >> RMIPort = " + this.RMIPort + " non valido");
-            return FunctionOutcome.FAILURE;
-        }
-        else if(this.multicastPort <= 1024){
-            System.err.println("[ERR] >> multicastPort = " + this.multicastPort + " non valido");
             return FunctionOutcome.FAILURE;
         }
         else if(this.connectionTimeout < 0){
@@ -219,11 +202,10 @@ public class ClientConfigurationManagement {
      */
     public void showConf(){
         System.out.println();
-        System.out.println("[Turing] >> Configurazioni con cui si stanno eseguendo il Server:");
+        System.out.println("[Turing] >> Configurazioni con cui si stanno eseguendo il Client:");
         System.out.println("- Nome del Server = " + this.serverHost );
         System.out.println("- Porta di registrazione = " + this.serverPort );
         System.out.println( "- Porta utilizzata per gli inviti = " + this.RMIPort);
-        System.out.println( "- Porta utilizzata per gli indirizzi di multicast = " + this.multicastPort);
         System.out.println("- Valore del Timeout = " + this.connectionTimeout);
         System.out.println("- Directory radice dove andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
         System.out.println();

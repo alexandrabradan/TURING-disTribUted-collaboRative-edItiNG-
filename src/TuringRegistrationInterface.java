@@ -16,5 +16,5 @@ public interface TuringRegistrationInterface extends Remote {
      *         OP_REGISTER_USER_ALREADY_ONLINE bisogna prima fare logout per registrare nuovo utente
      * @throws RemoteException I metodi remoti devono dichiarare di sollevare eccezioni remote
      */
-    public ServerResponse registerUser(String username, String password) throws RemoteException;
+    public ServerResponse registerTask(String username, String password) throws RemoteException;
 }

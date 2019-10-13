@@ -3,7 +3,7 @@ public class TuringServer {
     private static ServerConfigurationsManagement configurationsManagement = new ServerConfigurationsManagement();
 
     public static void main(String[] args){
-        System.out.println("[Turing] >> SERVER TURING AVVIATO");
+        System.out.println("[Turing] >> SERVER TURING (disTribUted collaboRative edItiNG) AVVIATO");
         System.out.println();
 
 
@@ -45,7 +45,7 @@ public class TuringServer {
 
         //***************************************CREAZIONE LISTENER THREAD*********************************************//
 
-        TuringListener listener = new TuringListener();
+        TuringListener listener = new TuringListener(configurationsManagement);
         Thread thread = new Thread(listener);
         thread.start();
 
@@ -59,6 +59,6 @@ public class TuringServer {
         }
 
         System.out.println();
-        System.out.println("[Turing] >> SERVER TURING TERMINATO");
+        System.out.println("[Turing] >> SERVER TURING (disTribUted collaboRative edItiNG) TERMINATO");
     }
 }

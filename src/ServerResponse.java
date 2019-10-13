@@ -6,11 +6,11 @@ public enum ServerResponse{
     OP_DOCUMENT_NOT_EXIST,  //documento da condividere/scaricare non esiste
     OP_SECTION_NOT_EXIST,  //sezione da editare/scarica non esiste
     OP_USERNAME_INAVLID_CHARACTERS, //username deve contente solo caratteri alfanumerici per creare cartelle univoche
-    OP_USERNAME_TOO_SHOORT, //userdeme inferiore caratteri minimi consentiti
-    OP_USERNAME_TOO_LOONG, //username eccede caratteri consentiti
+    OP_USERNAME_TOO_SHORT, //userdeme inferiore caratteri minimi consentiti
+    OP_USERNAME_TOO_LONG, //username eccede caratteri consentiti
     OP_PASSWORD_TOO_SHORT, //password inferiore caratteri consentiti
-    OP_PASSWORD_TOO_LOONG, //password eccede caratteri consentiti
-    OP_DOCUMENT_TOO_LOONG, //documento inferiore caratteri consentiti
+    OP_PASSWORD_TOO_LONG, //password eccede caratteri consentiti
+    OP_DOCUMENT_TOO_LONG, //documento inferiore caratteri consentiti
     OP_DOCUMENT_TOO_SHORT, //documento eccede caratteri consentiti
     OP_SECTION_EXCEED_LIMIT, //numero sezioni di un documento eccede il numero massimo consentito
     OP_USERNAME_ALREADY_TAKEN,  //in fase di registrazione bisogna fornire un nome univoco (non usato da un altro utente)
