@@ -2,28 +2,48 @@ import java.net.InetAddress;
 import java.nio.channels.SocketChannel;
 
 public class TuringTask {
-    private ServerConfigurationsManagement configurationsManagement; //classe che contiene variabili di configurazione
-    private ServerDataStructures serverDataStructures; //classe che contiene le strutture dati del Server
-    private SocketChannel client; //SocketChannel del Client di cui bisogna soddisfare richiesta e scrivere esito
-    private FileManagement fileManagement; //classe per gestire files e directories
+    /**
+     * Classe che contiene variabili di configurazione
+     */
+    private ServerConfigurationsManagement configurationsManagement;
+    /**
+     * Classe che contiene le strutture dati del Server
+     */
+    private ServerDataStructures serverDataStructures;
+    /**
+     * Classe che contiene metodi per leggere richieste e scrivere risposte di esito ai Clients
+     */
+    private ServerMessageManagement serverMessageManagement;
+    /**
+     * SocketChannel del Client di cui bisogna soddisfare richiesta e scrivere esito
+     */
+    private SocketChannel client;
+    /**
+     * Classe per gestire files e directories
+     */
+    private FileManagement fileManagement;
 
-    //N.B. Eccedenza numero caratteri consentiti e limite massimo sezioni e' stata fatta durante il parsing della
-    //richiesta letta sul SocketChannel => nomi username/password/documenti corretti e numero max. sezioni lecite
+    /*
+        N.B. Eccedenza numero caratteri consentiti e limite massimo sezioni e' stata fatta durante il parsing della
+             richiesta letta sul SocketChannel => nomi username/password/documenti corretti e numero max. sezioni lecite
+     */
+
 
     /**
      * Costruttore della classe TuringTask
-     * @param serverDataStructures classe che raccoglie le strutture dati del Server e che tramite i task (soddisfacimento
-     *                             delle richieste dei Clients) devono essere utilizzate e modificate
+     * @param configurationsManagement classe che contiene le variabili di configurazione del Server
+     * @param serverDataStructures classe che contiene le strutture dati del Server
+     * @param serverMessageManagement classe che contiene i metodi per leggere richieste ed inviare risposte
+     * @param client SocketChannel del Client di cui bisogna soddisfare la richiesta ed inviare risposta di esito
      */
     public TuringTask(ServerConfigurationsManagement configurationsManagement, ServerDataStructures serverDataStructures,
-                                                                                             SocketChannel client){
+                                                ServerMessageManagement serverMessageManagement, SocketChannel client){
         this.configurationsManagement = configurationsManagement;
         this.serverDataStructures = serverDataStructures;
+        this.serverMessageManagement = serverMessageManagement;
         this.client = client;
         this.fileManagement = new FileManagement();
     }
-
-    //@TODO spostare registrationTask nell'RMI
 
     /**
      * Funzione che si occupa di soddisfare la richiesta di connessione di un utente al servizio
@@ -35,28 +55,32 @@ public class TuringTask {
      *         OP_PASSWORD_INCORRECT se la password non corrisponde al quella fornita dall'utente in fase di
      *         registrazione
      */
-    public ServerResponse loginTask(String username, String password){
+    public FunctionOutcome loginTask(String username, String password){
         //verifico che l'utente non sia gia' connesso
         boolean online = this.serverDataStructures.checkIfUserIsOnline(username);
         if(online)
-            return ServerResponse.OP_USER_ALREADY_ONLINE; //utente gia' connesso (eventualmente con altro Client)
+            //utente gia' connesso (eventualmente con altro Client)
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_ALREADY_ONLINE, "");
 
         //utente disconesso => verifico se e' registrato al sevizio
         boolean register = this.serverDataStructures.checkIfUserIsRegister(username);
         if(!register)
-            return ServerResponse.OP_USER_NOT_REGISTERED; //utente non registrato al servizio
+            //utente non registrato al servizio
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_REGISTERED, "");
 
         //utente registrato al servizio => verifico se la password del login corrisponde a quella fornita in fase
         //di registrazione
         User user = this.serverDataStructures.getUserFromHash(username);  //recupero istanza dell'utente
         boolean checkPassword = user.equalsPassword(password); //verifico password
         if(!checkPassword)
-            return ServerResponse.OP_PASSWORD_INCORRECT; //password non corrisponde a quella fornita fase di reg.
+            //password non corrisponde a quella fornita fase di registrazione
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_PASSWORD_INCORRECT, "");
 
         //password corrisponde a quella fornita in fase di registrazione
         //connetto utente => inserisco SocketChannel e utente nella HashTable degli utenti online
         this.serverDataStructures.putToOnlineUsers(client, username);
-        return ServerResponse.OP_OK;
+
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -64,14 +88,24 @@ public class TuringTask {
      * @return OP_OK se la disconessione dell'utente ha avuto successo
      *         OP_USER_NOT_ONLINE se l'utente era gia' disconesso
      */
-    public ServerResponse logoutTask(){
+    public FunctionOutcome logoutTask(){
+
+        System.out.println("sono nel logout");
+
         //disconnetto utente => rimuovo utente dalla ht utenti connessi
         String username = this.serverDataStructures.removeFromOnlineUsers(client);
 
+        System.out.println("USERNAME " + username);
+
         //se la chiave/SocketChannel non era presente => utente non connesso
         if(username == null)
-            return ServerResponse.OP_USER_NOT_ONLINE; //utente non e' connesso
-        else return ServerResponse.OP_OK;  // (chiave, valore) eliminati dalla ht utenti online
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        System.out.println("LOGOUT OK");
+
+        //(chiave, valore) eliminati dalla ht utenti online
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -83,11 +117,13 @@ public class TuringTask {
      *         OP_USER_NOT_ONLINE se l'utente che richiede operazione non e' connesso
      *         OP_DOCUMENT_ALREADY_EXIST se il nuovo documento che si vuole creare esiste gia'
      */
-    public ServerResponse createTask(String document, int numSections){
+    public FunctionOutcome createTask(String document, int numSections){
         //verifico se utente e' connesso
         String username = this.serverDataStructures.checkIfSocketChannelIsOnline(client);
+
         if(username == null)
-            return ServerResponse.OP_USER_NOT_ONLINE;//utente non e' connesso
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
 
         //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
         //1. recupero dalla HashTable degli utenti registrati la sua istanza di User
@@ -96,33 +132,59 @@ public class TuringTask {
         //4. aggiorno HashTable dei documenti
         User user = this.serverDataStructures.getUserFromHash(username);
 
-        //verifico se utente ha creato un documento con lo stesso nome, andando a guardare il contenuto della
-        //cartella dedicata alla memorizzazione dei suoi files
-        String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory() + username + "/";
-        String userDocumentDirectory = userSaveDirectoryPath + document + "/";
+        /*formato nome documento : NOMEDOCUMENTO_USERNAME*/
+        String documentName = document + "_" + username;
 
-        //provo a creare la cartella
-        FunctionOutcome exist = this.fileManagement.createDirectory(userDocumentDirectory);
-        if(exist == FunctionOutcome.FAILURE)  //cartella gia' esistente
-            return ServerResponse.OP_DOCUMENT_ALREADY_EXIST; //utente ha gia' creato un documento con lo stesso nome
+        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
+        synchronized(this.serverDataStructures.getLockHash()) {
+
+            //verifico se documento e' gia' esistente (controllo presenza documento all'interno della ht dei documenti)
+            boolean exist = this.serverDataStructures.checkIfDocumentExist(documentName);
+
+            if(exist){
+                //utente ha gia' creato un documento con lo stesso nome (dato che nome documento e' dato dalla
+                // concatenazione del nome_documento e dell'username del creatore, e' sicuramente stato lui a crearlo)
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_ALREADY_EXIST, "");
+            }
+            else{
+                //ricavo InetAddress da associare alla chat del documento
+                InetAddress chatAddress = new MulticastAddressRandomGenerator(this.serverDataStructures).getRandomAddress();
+
+                //verifico che indirizzo di multicast non sia null (spazio degli indirizzi di multicast esaurito)
+                if(chatAddress == null)
+                    return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_MULTICAST_ADDRESS_RUN_OUT,
+                                                                                                        "");
+
+                //documento non esiste => creo nuova istanza di Document
+                Document doc = new Document(documentName, username, numSections, chatAddress);
+
+                //inserisco istanza del documento nella HashTable dei documenti
+                this.serverDataStructures.insertHashDocument(document, doc);
+
+                //inserisco documento nell'insieme dei documenti che utente puo' modificare
+                //@TODO VERIFICARE SE AVVIENE UPDATE NELLA HASHTABLE UTENTI
+                user.addSetDoc(documentName);
+            }
+        }
+
+        //recupero cartella dedicata alla memorizzazione dei files dell'utente
+        String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory() + username + "/";
+
+        //recupero path della cartella/documento
+        String userDocumentPath = userSaveDirectoryPath + documentName +  "/"; //documento e' una cartella
+
+        //creo la cartella/documento
+        this.fileManagement.createDirectory(userDocumentPath);
 
         // cartella/documento creata con successo
         //creo le sezioni del documento => creo un numero di files appropiato
         for(int i = 1; i <= numSections; i++){
-            String userSectionFile = userDocumentDirectory + i;  //nome sezione corrisponde suo numero
+            String userSectionFile = userDocumentPath + i + ".txt";  //nome sezione corrisponde suo numero
             this.fileManagement.createFile(userSectionFile); //creo sezione "i"
         }
 
-        //ricavo InetAddress da associare alla chat del documento
-        InetAddress chatAddress = this.serverDataStructures.getMulticastAddress();
-
-        //creo istanza del documento da inserire all'interno della HashTable
-        Document doc = new Document(document, username, numSections, chatAddress);
-
-        //inserisco istanza del documento nella HashTable dei documenti
-        this.serverDataStructures.insertHashDocument(document, doc);
-
-        return ServerResponse.OP_OK; // cartella(documento) e files(sezioni) creati con successo
+        // cartella(documento) e files(sezioni) creati con successo
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -141,8 +203,8 @@ public class TuringTask {
      *          OP_DEST_NOT_REGISTERED se il destinatario con cui si vuole condividere il documento non e' registrato
      *           al servizio (destinatario sconosciuto)
      */
-    public ServerResponse shareTask(String document, String dest){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome shareTask(String document, String dest){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -160,8 +222,8 @@ public class TuringTask {
      *           @TODO nel client verificare prima se download di qualche sezione (CHE DEVO NOTIFICARE AL CLIENT) non e'
      *           gia avvenuto (evito richiesta)
      */
-    public ServerResponse showDocumentTask(String document){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome showDocumentTask(String document){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -180,8 +242,8 @@ public class TuringTask {
      *          delle sezioni associate al documento fornito)
      *          @TODO nel client verificare prima se download di tale sezione non e' gia avvenuto (evito richiesta)
      */
-    public ServerResponse showSectionTask(String document, int numSection){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome showSectionTask(String document, int numSection){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -192,8 +254,8 @@ public class TuringTask {
      *         OP_USER_NOT_ONLINE se l'utente che richiede operazione non e' connesso
      *         OP_USER_NOT_REGISTERED se l'utente che richiede operazione non e' registrato
      */
-    public ServerResponse listTask(){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome listTask(){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -208,8 +270,8 @@ public class TuringTask {
      *         OP_OP_DOCUMENT_NOT_EXIST se il documento non esiste
      *         OP_SECTION_NOT_EXIST se la sezione non esiste
      */
-    public ServerResponse editTask(String document, int numSection){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome editTask(String document, int numSection){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
     /**
@@ -225,15 +287,15 @@ public class TuringTask {
      *         OP_OP_DOCUMENT_NOT_EXIST se il documento non esiste
      *         OP_SECTION_NOT_EXIST se la sezione non esiste
      */
-    public ServerResponse endEditTask(String document, int numSection){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome endEditTask(String document, int numSection){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
-    public ServerResponse sendTask(String message){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome sendTask(String message){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
-    public ServerResponse receiveTask(){
-        return ServerResponse.OP_OK;
+    public FunctionOutcome receiveTask(){
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 }

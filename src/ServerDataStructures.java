@@ -135,21 +135,6 @@ public class ServerDataStructures {
     //**********************METODI PER GESTIRE INSIEME INDIRIZZI DI MULTICAST***************************************//
 
     /**
-     * Funzione che preleva il primo indirizzo di multicast disponibile per poterlo assegnare ad un documento
-     * appena creato
-     * @return indirizzo di multicast da assegnare alla chat di un nuovo documento
-     *         null se subentra qualche errore
-     */
-    public InetAddress getMulticastAddress(){
-        try {
-            return this.multicast_set.take(); //prelevo primo indirizzo di multicast disponibile
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    /**
      * Funzione che controlla se l'indirizzo e' presente nell'insieme degli indirizzi di multicast o meno
      * @param address indirizzo di cui bisogna verificare presenza nell'insieme degli indirizzi di multicast
      * @return true se l'indirizzo è presente nell'insieme di multicast
@@ -202,6 +187,14 @@ public class ServerDataStructures {
      */
     public void insertHashUser(String username, User usr) {
         this.hash_users.put(username, usr);
+    }
+
+    /**
+     * Funzione che stampa la tabella hash degli utenti
+     */
+    public void printHashUser(){
+        System.out.println("STAMAPA TABELLA HASH UTENTI");
+        this.hash_users.forEach((key, value) -> System.out.println(key + " " + value.printUser()));
     }
 
     //***********************************METODI PER GESTIRE TABELLA HASH DOCUMENTI***********************************//

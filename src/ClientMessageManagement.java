@@ -3,7 +3,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 
-public class RequestManagement {
+public class ClientMessageManagement {
     /**
      * SocketChannel del Client con il quale inviare richiesta al Server
      */
@@ -28,12 +28,25 @@ public class RequestManagement {
      * ByteBuffer che contiene l'eventuale corpo della richiesta
      */
     private ByteBuffer body;
+    /**
+     * Classe per leggere il contenuto della risposta del Server dal SocketChannel
+     */
+    private SocketChannelReadManagement socketChannelReadManagement;
+    /**
+     * Classe per scrivere la richiesta al Server sul SocketChannel
+     */
+    private SocketChannelWriteManagement socketChannelWriteManagement;
 
     /**
      * Costruttore della classe RequestManagement
+     * @param clientSocket SocketChannel del Client di cui bisogna inviare richiesta e leggere risposta
      */
-    public RequestManagement(SocketChannel clientSocket){
+    public ClientMessageManagement(SocketChannel clientSocket){
         this.clientSocket = clientSocket;
+        this.socketChannelReadManagement = new SocketChannelReadManagement(this.clientSocket);
+        this.socketChannelWriteManagement = new SocketChannelWriteManagement(this.clientSocket);
+
+        setDefaultVariablesValues(); //resetto variabili della classe
     }
 
     /**
@@ -44,57 +57,6 @@ public class RequestManagement {
         this.currentCommand = CommandType.HELP;
         this.currentArg1 = "";
         this.currentArg2 = "";
-    }
-
-    /**
-     * Funzione che si occupa di leggere il contenuto da un SocketChannel
-     * @param buff ByteBuffer usato per memorizzare il contenuto letto
-     * @param size numero di bytes da leggere dal SocketChannel number of byte to read from the socket
-     */
-    private FunctionOutcome read(ByteBuffer buff,int size){
-
-        while(size > 0){
-            int bytesRead = 0;
-            try {
-                //provo a leggere dal SocketChannel
-                bytesRead = this.clientSocket.read(buff);
-
-                if(bytesRead < 0)
-                    return FunctionOutcome.FAILURE; //SocketChannel si e' disconeesso / problemi I/O
-
-                size -= bytesRead; //decremento bytes da leggere
-
-            } catch (IOException e) {
-                e.printStackTrace();
-                return FunctionOutcome.FAILURE; //SocketChannel si e' disconeesso / problemi I/O
-            }
-        }
-        return FunctionOutcome.SUCCESS; //lettura avvenuta con successo
-    }
-
-    /**
-     * Funzione che si occupa di scrivere su SocketChannel
-     * @param buff ByteBuffer che contiene il contenuto da scrivere
-     * @param size numero di bytes da scrivere
-     */
-    private FunctionOutcome write(ByteBuffer buff, int size){
-        while(size > 0){
-            int bytesWrote = 0;
-            try {
-                //provo a scrivere sul SocketChannel
-                bytesWrote = this.clientSocket.write(buff);
-
-                if(bytesWrote<0)
-                    return FunctionOutcome.FAILURE; //SocketChannel si e' disconeesso / problemi I/O
-
-                size -= bytesWrote; //decremento bytes da scrivere
-
-            } catch (IOException e) {
-                e.printStackTrace();
-                return FunctionOutcome.FAILURE; //SocketChannel si e' disconeesso / problemi I/O
-            }
-        }
-        return FunctionOutcome.SUCCESS; //scrittura avvenuta con successo
     }
 
     /**
@@ -146,7 +108,7 @@ public class RequestManagement {
         this.header.flip(); //modalita' lettura (position=0, limit = bytesWritten)
 
         //invio HEADER al Server
-        FunctionOutcome check = write(this.header, 8);
+        FunctionOutcome check = this.socketChannelWriteManagement.write(this.header, 8);
 
         if(check == FunctionOutcome.SUCCESS){  //invio HEADER avvenuto con successo
 
@@ -160,7 +122,7 @@ public class RequestManagement {
                 this.body.flip(); //modalita' lettura (position=0, limit = bytesWritten)
 
                 //invio BODY al Server
-                return write(this.body, this.body.limit()); //invio BODY
+                return this.socketChannelWriteManagement.write(this.body, this.body.limit()); //invio BODY
             }
             return FunctionOutcome.SUCCESS; //invio HEADER avvenuto con successo
 
@@ -190,11 +152,12 @@ public class RequestManagement {
         int responseBodyLength = 0;  //lunghezza BODY
 
         //leggo dimensione risposta
-        FunctionOutcome check = read(this.header, 8);
-
-        this.header.flip(); //modalita' lettura (position=0, limit = bytesWritten)
+        FunctionOutcome check = this.socketChannelReadManagement.read(this.header, 8);
 
         if(check == FunctionOutcome.SUCCESS){ //lettura
+
+            this.header.flip(); //modalita' lettura (position=0, limit = bytesWritten)
+
             responseType = ServerResponse.values()[this.header.getInt()]; //converto valore numerico nel rispettivo ENUM
             responseBodyLength = this.header.getInt(); //reperisco dimensione BODY
 
@@ -207,14 +170,13 @@ public class RequestManagement {
                 this.body.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
 
                 //leggo BODY della risposta
-                check = read(this.body, body.limit());
+                check = this.socketChannelReadManagement.read(this.body, body.limit());
 
                 if(check == FunctionOutcome.FAILURE)
                     return FunctionOutcome.FAILURE; //lettura BODY fallita
+                else return manageResponse(responseType, responseBodyLength); //lettura HEADER+BODY successo => stampa personalizzata
             }
-
-            //lettura HEADER avvenuta con sucesso => lettura eventuale del BODY e stampa personalizzata
-            return manageResponse(responseType, responseBodyLength);
+            else return manageResponse(responseType, responseBodyLength); //lettura HEADER successo => stampa personalizzata
         }
         else return FunctionOutcome.FAILURE; //lettura HEADER fallita
     }
@@ -298,11 +260,9 @@ public class RequestManagement {
                         //@TODO DECIDERE LIMITE HISTORY
                         break;
                     }
+                    default:
+                        break;
                 }
-            }
-            case  OP_INVALID_REQUEST:{
-                //non si verifica mai, ma inserito qui per scrupolo qual'ora check del parsing locale del Client fallise
-                System.err.println("[ERR] >> Richiesta non rientra nei servizi offerti");
                 break;
             }
             case OP_USER_NOT_ONLINE:{
@@ -381,6 +341,13 @@ public class RequestManagement {
                         + "Sezione non settata per l'editing precedentemente.", currentArg2, currentArg1));
                 break;
             }
+            case  OP_INVALID_REQUEST:{
+                //non si verifica mai, ma inserito qui per scrupolo qual'ora check del parsing locale del Client fallise
+                System.err.println("[ERR] >> Richiesta non rientra nei servizi offerti");
+                break;
+            }
+            default:
+                break;
         }
 
         return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine

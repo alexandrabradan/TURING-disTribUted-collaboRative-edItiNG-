@@ -18,6 +18,7 @@ public enum ServerResponse{
     OP_USER_ALREADY_ONLINE,  //utente tenta di fare login ma e' gia' connesso
     OP_PASSWORD_INCORRECT,  //password fornita in fase di login scoretta
     OP_DOCUMENT_ALREADY_EXIST, //documento da creare e' gia' esistente
+    OP_DOCUMENT_MULTICAST_ADDRESS_RUN_OUT, //esaurimento degli indirizzi di multicast
     OP_USER_NOT_CREATOR, //utente puo' invitare alla collaborazione del documento <=> e' creatore del documento
     OP_USER_IS_DEST, //utente condivide documento con se stesso (non lecito)
     OP_DEST_ALREADY_CONTRIBUTOR, //destinatario e' gia' collaboratore del documento

@@ -12,7 +12,7 @@ public class TuringClient {
     private static int serverPort;
     private static InetSocketAddress serverAddress;  //indirizzo e porta del Server a cui connettersi
 
-    private static RequestManagement requestManagement;
+    private static ClientMessageManagement clientMessageManagement;
 
     /**
      * Ciclo principale che si occupa di:
@@ -143,7 +143,7 @@ public class TuringClient {
             }
 
             //connessione al Server avvenuta con successo => creo istanze per scrivere richieste e leggere risposte
-            requestManagement = new RequestManagement(clientSocket);
+            clientMessageManagement = new ClientMessageManagement(clientSocket);
 
             return FunctionOutcome.SUCCESS;
 
@@ -184,44 +184,41 @@ public class TuringClient {
                         closeClientSocket(); //chiudo client-socket e programma
                     }
                     case REGISTER:{
-                        //ho registrazione al servizio tramite stub RMI avvenuta con successo => commando seguente
+                        //registrazione al servizio tramite stub RMI avvenuta => commando seguente
                         continue;
                     }
-                    case LOGIN:{}
-                    case LOGOUT:{}
-                    case CREATE:{}
-                    case SHARE:{}
-                    case SHOW_DOCUMENT:{}
-                    case SHOW_SECTION:{}
-                    case LIST:{}
-                    case EDIT:{}
-                    case END_EDIT:{}
-                    case SEND:{
-                        //multicast
-                    }
-                    case RECEIVE:{
-                        //multicast
-                    }
-                    default: //TUTTI CASI SOPRA VUOTI @TODO
+                    case LOGIN:
+                    case LOGOUT:
+                    case CREATE:
+                    case SHARE:
+                    case SHOW_DOCUMENT:
+                    case SHOW_SECTION:
+                    case LIST:
+                    case EDIT:
+                    case END_EDIT:
+                    case SEND:        //multicast
+                    case RECEIVE:{   //multicast
+
                         //recupero eventuali argomenti
                         String currentArg1 = commandLineManagement.getCurrentArg1();
                         String currentArg2 = commandLineManagement.getCurrentArg2();
 
                         //invio richiesta al Server
-                        check = requestManagement.writeRequest(currentCommand, currentArg1, currentArg2);
+                        check = clientMessageManagement.writeRequest(currentCommand, currentArg1, currentArg2);
 
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing >> Impossibile sottomettere la richiesta al Server]");
-                           System.exit(-1);
+                            closeClientSocket();
                         }
 
                         //attendo risposta dal Server
-                        check = requestManagement.readResponse();
+                        check = clientMessageManagement.readResponse();
 
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing >> Impossibile reperire la risposta del Server]");
-                            System.exit(-1);
+                            closeClientSocket();
                         }
+                    }
                 }
             }
         }
@@ -235,7 +232,9 @@ public class TuringClient {
         //controllo che il SocketChannel sia stato inizializzato, altrimenti esco semplicemente
         if(clientSocket != null){
             try {
+
                 clientSocket.close();
+                System.out.println("[Turing] >> Client-socket chiuso");
 
                 System.exit(0);
 

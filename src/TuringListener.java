@@ -93,13 +93,24 @@ public class TuringListener implements Runnable {
     }
 
     public void addAgainSatisfiedSocketChannelsToSelector(Selector selector){
+
+        System.out.println("Sono in addAgainSatisfiedSocketChannelsToSelector");
+
         //recupero SocketChannels soddisfatti da reinserire nel selettore
         BlockingQueue<SocketChannel> selectorKeysToReinsert =  this.serverDataStructures.getSelectorKeysToReinsert();
+
+        for(SocketChannel socketChannel: this.serverDataStructures.getSelectorKeysToReinsert()){
+            System.out.println("sock = " + socketChannel);
+        }
 
         //rimuovo SocketChannels dalla BlockingQueue e li trasferisco in un vettore, per poter iterare tale
         //vettore e registrare nuovamente, uno a uno, i SocketChannels al selettore per leggere nuove richieste
         Vector<SocketChannel> socketChannelsList = new Vector<>();
         selectorKeysToReinsert.drainTo(socketChannelsList);
+
+        System.out.println("socketChannelsList size = " + socketChannelsList.size());
+
+        //@TODO verificare se devo usare "this.serverDataStructures.removeSelectorKeysToReinsert" (lo dovrebbe fare drainTo)
 
         for(SocketChannel socketChannel: socketChannelsList){
             try {
@@ -166,6 +177,8 @@ public class TuringListener implements Runnable {
                 //La riaggiunta permette la lettura di nuove richieste da parte di questi Clients
                 addAgainSatisfiedSocketChannelsToSelector(selector);
 
+                System.out.println("Sono nel ciclo di ascolto");
+
                 //seleziono clients-sockets pronti per fare un'operazione di IO
                 selector.select();
 
@@ -198,7 +211,7 @@ public class TuringListener implements Runnable {
                         Calendar calendar = Calendar.getInstance();
                         System.out.println();
                         System.out.println("[Turing] >> Accettata al tempo: |" + this.dateFormat.format(calendar.getTime())
-                                                                                + "| connessione con: " + client);
+                                                        + "| connessione con: " + client.getRemoteAddress().toString());
                         System.out.println();
 
                         //setto client in modalita' NON-BLOCKING, per poterlo utilizzare con il Selector
@@ -220,7 +233,7 @@ public class TuringListener implements Runnable {
                         Calendar calendar = Calendar.getInstance();
                         System.out.println();
                         System.out.println("[Turing] >> Ricevuta al tempo: |" + this.dateFormat.format(calendar.getTime())
-                                + "| richiesta da: " + client);
+                                + "| richiesta da: " + client.getRemoteAddress().toString());
 
                         //sottometto al ThreadPool il task che uno dei threads dovra' soddisfare, ossia:
                         //1. prelevare un Task dalla coda di lavoro

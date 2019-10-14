@@ -150,4 +150,9 @@ public class User {
     public synchronized void clearLiveDocs() {
         this.set_liveDocs.clear();
     }
+
+    public synchronized String printUser(){
+        return String.format("Username = %s  Password = %s  set_docs_lenght = %d pending_docs = %d  live_docs = %d",
+                this.username, this.password, this.set_docs.size(), this.set_pendingDocs.size(), this.set_liveDocs.size());
+    }
 }

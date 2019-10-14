@@ -116,7 +116,7 @@ public class ClientCommandLineManagement {
     /**
      * Funzione che si occupa di reperire lo stub RMI messo a disposizione dal Server e di effettuare
      * la chiamata del metodo remoto "registerTask" con il quale si tenta di registrare un nuovo utente
-     * al servizio
+     * al servizio. Il metodo si occupa anche di stampare l'esito dell'operazione a schermo.
      * @return SUCCESS se e' stato possibile registrare tramiet RMI l'utente al servizio
      *         FAILURE altrimenti
      */
@@ -220,10 +220,6 @@ public class ClientCommandLineManagement {
                 String[] commandWords = command.split("\\s+");
 
                 int commandWordsLength = commandWords.length;  //numero di parole lette
-
-                for(int i = 0; i < commandWordsLength; i++){
-                    System.out.print(String.format("[%d] = %s ", i, commandWords[i]));
-                }
 
                 //verifico se comando inizia con la parola "turing"
                 if(!commandWords[0].equals("turing")){  //comando NON inizia con la parola turing
