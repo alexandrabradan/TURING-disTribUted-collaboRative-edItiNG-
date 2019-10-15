@@ -1,5 +1,8 @@
 import java.net.InetAddress;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 public class TuringTask {
     /**
@@ -121,20 +124,17 @@ public class TuringTask {
             return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
 
         //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
-        //1. recupero dalla HashTable degli utenti registrati la sua istanza di User
-        //2. verifico che nuovo documento che vuole creare non esista gia'
-        //3. creo nuovo documento ed aggiorno la sua istanza
-        //4. aggiorno HashTable dei documenti
-        User user = this.serverDataStructures.getUserFromHash(username);
-
-        /*formato nome documento : NOMEDOCUMENTO_USERNAME*/
-        String documentName = document + "_" + username;
+        //1. verifico che nuovo documento che vuole creare non esista gia'
+        //2. creo nuovo documento ed aggiorno la sua istanza
+        //3. aggiorno HashTable dei documenti
+        //4. recupero dalla HashTable degli utenti registrati la sua istanza di User
+        //5. aggiungo documento ai documenti modificabili dall'utente
 
         // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
         synchronized(this.serverDataStructures.getLockHash()) {
 
             //verifico se documento e' gia' esistente (controllo presenza documento all'interno della ht dei documenti)
-            boolean exist = this.serverDataStructures.checkIfDocumentExist(documentName);
+            boolean exist = this.serverDataStructures.checkIfDocumentExist(document);
 
             if(exist){
                 //utente ha gia' creato un documento con lo stesso nome (dato che nome documento e' dato dalla
@@ -151,13 +151,16 @@ public class TuringTask {
                                                                                                         "");
 
                 //documento non esiste => creo nuova istanza di Document
-                Document doc = new Document(documentName, username, numSections, chatAddress);
+                Document doc = new Document(document, username, numSections, chatAddress);
 
                 //inserisco istanza del documento nella HashTable dei documenti
-                this.serverDataStructures.insertHashDocument(documentName, doc);
+                this.serverDataStructures.insertHashDocument(document, doc);
+
+                //recupero dalla HashTable degli utenti registrati la sua istanza di User
+                User user = this.serverDataStructures.getUserFromHash(username);
 
                 //inserisco documento nell'insieme dei documenti che utente puo' modificare
-                user.addSetDoc(documentName);
+                user.addSetDoc(document);
             }
         }
 
@@ -165,7 +168,7 @@ public class TuringTask {
         String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory() + username + "/";
 
         //recupero path della cartella/documento
-        String userDocumentPath = userSaveDirectoryPath + documentName +  "/"; //documento e' una cartella
+        String userDocumentPath = userSaveDirectoryPath + document +  "/"; //documento e' una cartella
 
         //creo la cartella/documento
         this.fileManagement.createDirectory(userDocumentPath);
@@ -198,6 +201,75 @@ public class TuringTask {
      *           al servizio (destinatario sconosciuto)
      */
     public FunctionOutcome shareTask(String document, String dest){
+        //verifico se utente e' connesso
+        String username = this.serverDataStructures.checkIfSocketChannelIsOnline(client);
+
+        if(username == null)
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
+        //1. verifico che documento che vuole condividere esista (sia presente nella ht documenti)
+        //2. verifico che utente sia il creatore del documento
+        //3. verifico che il destinatario non sia l'utente stesso
+        //5. verifico che il destinatario non sia gia' collaboratore
+        //5. verifico che il destinatario sia registrato al servizio
+        //6. inserisco destinatario tra i contribuenti del documento
+        //7. inserisco notifica dell'invito alla collaborazione nel set del destinatario, a secondda che sia
+        //   offline (notifica ricevuta quando fa LOGIN) oppure online (notifica ricevuta istantanemente grazie al
+        //   Listener thread degli inviti del Client)
+
+        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
+        synchronized(this.serverDataStructures.getLockHash()) {
+            //verifico se documento esiste (provo a reperirlo nella ht dei documenti)
+            Document doc = this.serverDataStructures.getDocumentFromHash(document);
+
+            if(doc == null)  //documento non esiste
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+
+            //verifico se il destinatario e' registato al servizio (cercandolo nella ht degli utenti)
+            User receiver = this.serverDataStructures.getUserFromHash(dest);
+            if(receiver == null) //destinatario non e'registrato al servizio
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_NOT_REGISTERED, "");
+
+            //reperisco creatore del documento
+            String creator = doc.getCreatorName();
+
+            //verifico che l'utente sia il creatore del documento (altrimenti non lo puo' condividere)
+            if(!doc.isCreator(username))
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_CREATOR, "");
+
+            //verifico che il destinatario non sia il creatore del documento (in tal caso e' gia' collaboratore)
+            if(!doc.isCreator(dest))
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_ALREADY_CONTRIBUTOR, "");
+
+            //utente e' il creatore del documento e dest non e' suo creatore
+            //verifico che destinatario non sia l'utente stesso
+            if(username.equals(dest))
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_IS_DEST, "");
+
+            //verifico che il destinatario non sia gia' collaboratore del documento
+            if(doc.checkIfUserIsModifier(dest))
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_ALREADY_CONTRIBUTOR, "");
+
+            //destinatario non e' collaboratore del documento
+            //inserisco il destinatario come collaboratore del documento
+            doc.addUser(dest);
+
+            //verifico se destinatario e' online, per differenziare come comportarmi:
+            //1. se e' online => gli notifico immediatamente invito
+            //2. se e' offline => inserisco invito nell'insieme degli inviti pendenti e appena fa il login glielo
+            //                      faccio sapere
+            boolean online = this.serverDataStructures.checkIfUserIsOnline(dest);
+            if(online){  //destinatario e' connesso
+                receiver.addSetLiveDocs(document);  //inserisco invito nel suo insieme di inviti online
+            }
+            else{  //destinatario e' offline
+                receiver.addSetPendingDocs(document); //inserisco invito nel suo insieme di inviti offline
+            }
+        }
+
+        //invio invito andato a buon fine
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
@@ -246,10 +318,63 @@ public class TuringTask {
      * creatori)
      * @return OP_OK se la visualizzazione delle informazioni dei documenti dell'utente hanno avuto successo
      *         OP_USER_NOT_ONLINE se l'utente che richiede operazione non e' connesso
-     *         OP_USER_NOT_REGISTERED se l'utente che richiede operazione non e' registrato
      */
     public FunctionOutcome listTask(){
-        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+
+        //verifico se utente e' connesso
+        String username = this.serverDataStructures.checkIfSocketChannelIsOnline(client);
+
+        if(username == null)
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
+        //1. recupero sua istanza di User dalla ht degli utenti
+        //2. recupero lista documenti che puo' modificare (perche' collaboratore/creatore)
+        //3. per ogni documento, recupero istanza Doc dalla ht dei documenti e concatento le sue informazioni da
+        //   mandare al Client come risposta
+
+        StringBuilder body = new StringBuilder(); //BODY della risposta da mandare al Client
+
+        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
+        synchronized(this.serverDataStructures.getLockHash()) {
+
+            //recupero istanza dell'utente
+            User user = this.serverDataStructures.getUserFromHash(username);
+
+            Set<String> userDocs = user.getSetDocs();
+
+            for(String document: userDocs){
+
+                body.append("\n");
+                body.append(document);
+                body.append(":\n");
+
+                //recupero istanza del documento
+                Document doc = this.serverDataStructures.getDocumentFromHash(document);
+
+                //recupero creatore del documento
+                String creator = doc.getCreatorName();
+
+                body.append("    creatore : ");
+                body.append(creator);
+                body.append("\n");
+                body.append("    collaboratori : ");
+
+                //recupero altri collaboratori
+                LinkedHashSet<String> modifiers = doc.getModifiers();
+
+                //itero sui collaboratori del documento
+                for(String modifier: modifiers){
+                    body.append(modifier);
+                    body.append(" ");
+                }
+            }
+        }
+
+        //invio informazioni dei documenti dell'utente sottoforma di stringa, incapsulata nel body
+        //della risposta del Server
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, body.toString());
     }
 
     /**

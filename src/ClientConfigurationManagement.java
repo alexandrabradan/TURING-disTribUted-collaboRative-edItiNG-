@@ -179,18 +179,15 @@ public class ClientConfigurationManagement {
      *         FAILURE se la creazione di una delle 3 cartelle oppure lo svuotamento di una di esse non ha avuto successo
      */
     public FunctionOutcome allocateConf(){
-        FunctionOutcome check = this.fileManagement.checkEsistenceDirectoryOtherwiseCreateIt(this.clientsDownloadsDocumentsDirectory);
+        boolean exist = this.fileManagement.checkEsistenceDirectory(this.clientsDownloadsDocumentsDirectory);
 
-        if(check  == FunctionOutcome.FAILURE){
-            System.err.println("[ERR] >> Impossibile creare cartella di configurazione");
-            return FunctionOutcome.FAILURE;
+        if(exist){
+            this.fileManagement.deleteDirectory(this.clientsDownloadsDocumentsDirectory);
         }
+        FunctionOutcome check1 = this.fileManagement.createDirectory(this.clientsDownloadsDocumentsDirectory);
 
-        //se la cartella esisteva gia' va svuotata
-        check = this.fileManagement.deleteDirectoryContent(this.clientsDownloadsDocumentsDirectory);
-
-        if(check  == FunctionOutcome.FAILURE){
-            System.err.println("[ERR] >> Impossibile svuotare cartella di configurazione");
+        if(check1 == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile creare cartella di configurazione");
             return FunctionOutcome.FAILURE;
         }
 

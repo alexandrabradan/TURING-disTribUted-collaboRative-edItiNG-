@@ -95,14 +95,14 @@ public class TuringListener implements Runnable {
      */
     private FunctionOutcome activateRMI(int RMIPort){
         //creo oggetto remoto
-        TuringRegistrationInterface turingRegistrationRMI = new TuringRegistrationRMI(this.configurationsManagement,
+        TuringRegistrationRMIInterface turingRegistrationRMI = new TuringRegistrationRMI(this.configurationsManagement,
                 this.serverDataStructures);
         //creo stub, che Client chiamera' per utilizzare oggetto remoto del Server
-        TuringRegistrationInterface stub = null;
+        TuringRegistrationRMIInterface stub = null;
         try {
             //remoteObj = oggetto remoto del Server
             //port = porta utilizzata per esportare l'oggetto remoto sul Registro(=0 qualsiasi)
-            stub = (TuringRegistrationInterface) UnicastRemoteObject.exportObject(turingRegistrationRMI,0);
+            stub = (TuringRegistrationRMIInterface) UnicastRemoteObject.exportObject(turingRegistrationRMI,0);
 
             //creo un Registro locale del Server, nel quale andro' a memoriizzare il riferimento (stub) all'oggetto
             // remoto, reperibile dai Clients

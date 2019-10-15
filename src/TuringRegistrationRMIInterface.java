@@ -5,7 +5,7 @@ import java.rmi.RemoteException;
  * Interfaccia (Stub) di registrazione al servizio Turing che utilizza RMI. La classe è un' interfaccia remota, dato che
  * estende Remote e serve per identificare gli oggetti che possono essere utilizzati in remoto
  */
-public interface TuringRegistrationInterface extends Remote {
+public interface TuringRegistrationRMIInterface extends Remote {
 
     /**
      * Funzione che consente ad un utente di registrarsi al servizio

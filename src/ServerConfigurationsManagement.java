@@ -283,20 +283,21 @@ public class ServerConfigurationsManagement {
      *         FAILURE se la creazione di una delle 3 cartelle oppure lo svuotamento di una di esse non ha avuto successo
      */
     public FunctionOutcome allocateConf(){
-        FunctionOutcome check1 = this.fileManagement.checkEsistenceDirectoryOtherwiseCreateIt(this.serverSaveDocumentsDirectory);
-        FunctionOutcome check2 = this.fileManagement.checkEsistenceDirectoryOtherwiseCreateIt(this.serverEditDocumentsDirectory);
+        boolean exist = this.fileManagement.checkEsistenceDirectory(this.serverSaveDocumentsDirectory);
+        boolean exist2 = this.fileManagement.checkEsistenceDirectory(this.serverEditDocumentsDirectory);
 
-        if(check1 == FunctionOutcome.FAILURE || check2  == FunctionOutcome.FAILURE){
-            System.err.println("[ERR] >> Impossibile creare una delle 3 cartelle di configurazione");
-            return FunctionOutcome.FAILURE;
+        if(exist){
+            this.fileManagement.deleteDirectory(this.serverSaveDocumentsDirectory);
         }
+        FunctionOutcome check1 = this.fileManagement.createDirectory(this.serverSaveDocumentsDirectory);
 
-        //se le 2 cartelle esistevano gia' vanno svuotate
-        check1  = this.fileManagement.deleteDirectoryContent(this.serverSaveDocumentsDirectory);
-        check2 = this.fileManagement.deleteDirectoryContent(this.serverEditDocumentsDirectory);
+        if(exist2){
+           this.fileManagement.deleteDirectory(this.serverEditDocumentsDirectory);;
+        }
+        FunctionOutcome check2 = this.fileManagement.createDirectory(this.serverEditDocumentsDirectory);
 
-        if(check1 == FunctionOutcome.FAILURE ||  check2 == FunctionOutcome.FAILURE){
-            System.err.println("[ERR] >> Impossibile svuotare una delle 2 cartelle di configurazione");
+        if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile creare una delle 2 cartelle di configurazione");
             return FunctionOutcome.FAILURE;
         }
 

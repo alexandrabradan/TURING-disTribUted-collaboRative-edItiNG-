@@ -227,6 +227,7 @@ public class ServerDataStructures {
      * Funzione che restituisce l'istanza della classe corrispondete al docuemnto passato come argomento
      * @param document documento di cui bisogna restituire istanza
      * @return Document istanza del docuemnto corrispondente
+     *         null se documento non esiste
      */
     public Document getDocumentFromHash(String document) {
         return hash_documents.get(document);

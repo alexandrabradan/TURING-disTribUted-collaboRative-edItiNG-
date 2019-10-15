@@ -6,7 +6,6 @@ public class TuringClient {
     private static String defaultConfFile = "/src/data/turingClient.conf";
     private static ClientConfigurationManagement configurationsManagement = new ClientConfigurationManagement();
     private static RMIRegistrationHandler rmiRegistrationHandler = new RMIRegistrationHandler();
-    private static MulticastChatHandler multicastChatHandler = new MulticastChatHandler();
     private static SocketChannel clientSocket = null;      //client-socket
     private static String serverHost;
     private static int serverPort;
@@ -188,6 +187,7 @@ public class TuringClient {
                     }
                     case EXIT:{
                         closeClientSocket(); //chiudo client-socket e programma
+                        break;
                     }
                     case REGISTER:{
                         //registrazione al servizio tramite stub RMI avvenuta => commando seguente

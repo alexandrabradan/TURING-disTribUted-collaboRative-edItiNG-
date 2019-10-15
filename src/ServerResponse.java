@@ -22,8 +22,9 @@ public enum ServerResponse{
     OP_USER_NOT_CREATOR, //utente puo' invitare alla collaborazione del documento <=> e' creatore del documento
     OP_USER_IS_DEST, //utente condivide documento con se stesso (non lecito)
     OP_DEST_ALREADY_CONTRIBUTOR, //destinatario e' gia' collaboratore del documento
-    OP_DEST_NOT_REGISTERED,  //@TODO gestione casistica destinatario online/offline
+    OP_DEST_NOT_REGISTERED,  //destinatario deve essere un utente registrato al servizio
     OP_USER_NOT_ALLOWED_TO_EDIT, //utente deve essere collaboratore/creatore di un documento per poterlo editare
     OP_SECTION_ALREADY_IN_EDITING_MODE, //se la sezione richiesta da editare e' gia' editata da qualcuno
     OP_SECTION_NOT_IN_EDITING_MODE, //se la sezione di cui si richiede fine editing non era settata ad editabile
+    OP_ONLINE_INVITE_ADVERTISEMENT, //flag per segnalare soppraggiungere di un invito ad un utente connesso
 }

@@ -5,7 +5,6 @@ import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.time.Year;
 
 public class ClientCommandLineManagement {
     private ClientConfigurationManagement configurationsManagement; //per reperire var. di configurazione
@@ -129,10 +128,10 @@ public class ClientCommandLineManagement {
                     configurationsManagement.getRMIPort());
 
             //recupero stub (riferimento oggetto remoto del Server)
-            TuringRegistrationInterface stub = null;
+            TuringRegistrationRMIInterface stub = null;
             try {
                 //provo a recuperare lo stub associato alla chiave univoca "TURING-RMI-REGISTRATION"
-                stub = (TuringRegistrationInterface) registry.lookup("TURING-RMI-REGISTRATION");
+                stub = (TuringRegistrationRMIInterface) registry.lookup("TURING-RMI-REGISTRATION");
 
             } catch (NotBoundException e) {
                 e.printStackTrace();

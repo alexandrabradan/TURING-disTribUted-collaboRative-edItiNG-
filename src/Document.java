@@ -17,7 +17,7 @@ public class Document {
     /**
      * insieme degli utenti che possono modificare il documento (collaboratori/creatori)
      */
-    private Set<String> modifiers;
+    private LinkedHashSet<String> modifiers;
     /**
      * array di locks per ottenere mutua esclusione accesso sezioni documento
      */
@@ -61,7 +61,7 @@ public class Document {
      * Funzione che restituisce l'utente creatore del documento
      * @return this.creator
      */
-    public synchronized String getUserName() {
+    public synchronized String getCreatorName() {
         return this.creator;
     }
 
@@ -96,8 +96,19 @@ public class Document {
      * collaboratori oppure creatori
      * @return this.modifiers
      */
-    public synchronized Set<String> getModifiers(){
+    public synchronized LinkedHashSet<String> getModifiers(){
         return this.modifiers;
+    }
+
+    /**
+     * Funzione che verifica se l'utente passato come argomento figura tra gli collaboratori del documento
+     * (perche' vi e' creatore/collaboratore) o meno
+     * @param userToCheck utente da verificare
+     * @return true se l'utente e' collaboratore del documento
+     *         false false
+     */
+    public synchronized boolean checkIfUserIsModifier(String userToCheck){
+        return this.modifiers.contains(userToCheck);
     }
 
     /**

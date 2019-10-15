@@ -236,8 +236,8 @@ public class ClientMessageManagement {
                         break;
                     }
                     case LIST:{
-                        System.out.println(String.format("[%s] >> Recap tuoi documenti", currentUser));
-                        System.out.println(responseBody);  //@TODO SPLIT PER STAMPARE CONTENUTO
+                        System.out.println(String.format("[%s] >> Recap tuoi documenti:", currentUser));
+                        System.out.println(responseBody);
                         break;
                     }
                     case EDIT:{
@@ -269,11 +269,11 @@ public class ClientMessageManagement {
                 break;
             }
             case OP_USER_NOT_ONLINE:{
-                System.err.println(String.format("[ERR] >> Utente |%s| NON connesso.", currentArg1));
+                System.err.println(String.format("[ERR] >> Utente |%s| NON connesso.", currentUser));
                 break;
             }
             case OP_USER_NOT_REGISTERED:{
-                System.err.println(String.format("[ERR] >> Utente |%s| NON registrato.", currentArg1));
+                System.err.println(String.format("[ERR] >> Utente |%s| NON registrato.", currentUser));
                 break;
             }
             case OP_DOCUMENT_NOT_EXIST:{
@@ -298,7 +298,7 @@ public class ClientMessageManagement {
                 break;
             }
             case OP_USER_ALREADY_ONLINE:{
-                System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", currentArg1));
+                System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", currentUser));
                 break;
             }
             case OP_PASSWORD_INCORRECT:{

@@ -91,15 +91,6 @@ public class User {
         return this.set_liveDocs;
     }
 
-    /**
-     * Funzione che restituisce l'insieme dei documenti modificabili dall'utente (perche' ne e' collaboartore/creatore),
-     * sottoforma di array
-     * N.B. metodo viene utilizzato per commando <<list>>>
-     * @return this.set_doc.toArray()
-     */
-    public synchronized String[] getSetDocsToArray() {return (String[])this.set_docs.toArray();
-    }
-
     /** Funzione che aggiunge un documento all'insieme dei documenti che l'utente può editare
      * @param document documento da aggiungere
      */

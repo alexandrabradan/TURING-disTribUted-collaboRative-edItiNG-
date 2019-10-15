@@ -3,7 +3,7 @@ import java.rmi.RemoteException;
 /**
  * Classe che implementa l'interfaccia di registrazione, ossia l'implementazione dei metodi del servizio remoto
  */
-public class TuringRegistrationRMI implements TuringRegistrationInterface {
+public class TuringRegistrationRMI implements TuringRegistrationRMIInterface {
     private ServerConfigurationsManagement serverConfigurationsManagement;
     private ServerDataStructures serverDataStructures;
     private FileManagement fileManagement;

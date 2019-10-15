@@ -205,8 +205,9 @@ public class TuringWorker implements Runnable{
      * Funzione che si occupa di:
      * 1. chiudere il SocketChannel del Client di cui il Worker-thread si sta occupando
      * 2. far terminare il Worker-thread corrente
+     * @param socketName nome del SocketChannel che e' stato chiuso / su cui sono subbentrati problemi I/O
      */
-    private void endWorker(){
+    private void endWorker(String socketName){
         try {
 
             //@TODO VERIFICARE SE CLIENT STAVA EDITANDO QUALCHE SEZIONE, CHIUDERE EDITING E RILASCIARE MUTUA ESCLUSIONE
@@ -218,20 +219,15 @@ public class TuringWorker implements Runnable{
             this.client.close();
 
             System.out.println(String.format("[%s] >> Socket |%s| chiuso con successo",
-                    Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
+                    Thread.currentThread().getName(), socketName));
 
             //termino Worker-thread corrente
             Thread.currentThread().interrupt();
 
         } catch (IOException e) {
             e.printStackTrace();
-            try {
-                System.err.println(String.format("[%s] Impossibile chiudere il SocketChannel |%s|",
-                        Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
-            } catch (IOException ex) {
-                ex.printStackTrace();
-                System.exit(-1);
-            }
+            System.err.println(String.format("[%s] Impossibile chiudere il SocketChannel |%s|",
+                    Thread.currentThread().getName(), socketName));
             System.exit(-1);
         }
     }
@@ -244,6 +240,14 @@ public class TuringWorker implements Runnable{
 
         //resetto variabili eventualmente inizializzate precedentemente
         setDefaultVariablesValues();
+
+        //memorizzo nome SocketChannel, nel caso rilevi che si disconetta per poterlo stampare
+        String socketName = null;
+        try {
+            socketName = this.client.getRemoteAddress().toString();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         //leggo richiesta del Client
         FunctionOutcome readRequest = this.serverMessageManagement.readRequest();
@@ -258,7 +262,8 @@ public class TuringWorker implements Runnable{
             }
 
             //problemi I/O con SocketChannel del Client => chiudo SocketChannel e termino Worker-thread
-            endWorker();
+            endWorker(socketName);
+            return;
         }
 
         //lettura richiesta Client andata a buon fine
@@ -290,7 +295,8 @@ public class TuringWorker implements Runnable{
             }
 
             //problemi I/O con SocketChannel del Client => chiudo SocketChannel e termino Worker-thread
-            endWorker();
+            endWorker(socketName);
+            return;
         }
         else{
             //invio risposta Client andato a buon fine
