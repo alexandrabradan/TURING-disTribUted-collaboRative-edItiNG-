@@ -208,6 +208,12 @@ public class TuringWorker implements Runnable{
      */
     private void endWorker(){
         try {
+
+            //@TODO VERIFICARE SE CLIENT STAVA EDITANDO QUALCHE SEZIONE, CHIUDERE EDITING E RILASCIARE MUTUA ESCLUSIONE
+
+            //verifico se Client e' connesso e se lo e', lo disconetto
+            this.dataStructures.removeFromOnlineUsers(this.client);
+
             //chiudo il SocketChannel del Client di cui il Worker si sta occupando
             this.client.close();
 
@@ -228,7 +234,9 @@ public class TuringWorker implements Runnable{
      */
     public void run(){
 
-        System.out.println("SONO NEL RUN");
+        //assegno nome al Worker-thread per effettuare stampe personalizzate
+        //Thread.currentThread().setName("Worker" + this.client);
+
 
         //resetto variabili eventualmente inizializzate precedentemente
         setDefaultVariablesValues();
@@ -262,9 +270,6 @@ public class TuringWorker implements Runnable{
             //attendere lettura nuove richieste
             this.dataStructures.addSelectorKeysToReinsert(this.client);
 
-            for(SocketChannel socketChannel: this.dataStructures.getSelectorKeysToReinsert()){
-                System.out.println("sockkkkkkkkkkkkkkkk = " + socketChannel);
-            }
         }
     }
 }

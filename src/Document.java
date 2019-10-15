@@ -135,4 +135,21 @@ public class Document {
     public synchronized void unlockSezione(int section) {
         sectionsLockArray[section].unlock();
     }
+
+    /**
+     * Funzione restituisce le informazioni sulle variabili della classse sottoforma di stringa
+     * @return una stringa che contiene le informazioni sulle variabili dell'oggetto corrente
+     */
+    public synchronized String printDoc(){
+        String stringToPrint = String.format("Document = %s  Creator = %s chatAddress = %s modifiers = |",
+                this.document, this.creator, this.chatAddress);
+
+        StringBuilder tmpString = new StringBuilder();
+        for(String modifier: modifiers){
+            tmpString.append(" ").append(modifier);
+        }
+        tmpString.append("|");
+
+        return stringToPrint + tmpString;
+    }
 }

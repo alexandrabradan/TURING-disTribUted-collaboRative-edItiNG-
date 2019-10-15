@@ -80,6 +80,8 @@ public class TuringTask {
         //connetto utente => inserisco SocketChannel e utente nella HashTable degli utenti online
         this.serverDataStructures.putToOnlineUsers(client, username);
 
+        this.serverDataStructures.printOnlineUsers();
+
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
@@ -90,19 +92,15 @@ public class TuringTask {
      */
     public FunctionOutcome logoutTask(){
 
-        System.out.println("sono nel logout");
-
         //disconnetto utente => rimuovo utente dalla ht utenti connessi
         String username = this.serverDataStructures.removeFromOnlineUsers(client);
-
-        System.out.println("USERNAME " + username);
 
         //se la chiave/SocketChannel non era presente => utente non connesso
         if(username == null)
             //utente non e' connesso
             return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
 
-        System.out.println("LOGOUT OK");
+        this.serverDataStructures.printOnlineUsers();
 
         //(chiave, valore) eliminati dalla ht utenti online
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
@@ -132,6 +130,11 @@ public class TuringTask {
         //4. aggiorno HashTable dei documenti
         User user = this.serverDataStructures.getUserFromHash(username);
 
+        System.out.println("STAMPA INFO UTENTE");
+        System.out.println(user.printUser());
+
+        this.serverDataStructures.printHashDoc();
+
         /*formato nome documento : NOMEDOCUMENTO_USERNAME*/
         String documentName = document + "_" + username;
 
@@ -140,6 +143,8 @@ public class TuringTask {
 
             //verifico se documento e' gia' esistente (controllo presenza documento all'interno della ht dei documenti)
             boolean exist = this.serverDataStructures.checkIfDocumentExist(documentName);
+
+            System.out.println("exist = " + exist);
 
             if(exist){
                 //utente ha gia' creato un documento con lo stesso nome (dato che nome documento e' dato dalla
@@ -150,6 +155,9 @@ public class TuringTask {
                 //ricavo InetAddress da associare alla chat del documento
                 InetAddress chatAddress = new MulticastAddressRandomGenerator(this.serverDataStructures).getRandomAddress();
 
+                System.out.println(String.format("Nuovo chataddress = |%s| assegnato al documento |%s|",
+                        chatAddress, documentName ));
+
                 //verifico che indirizzo di multicast non sia null (spazio degli indirizzi di multicast esaurito)
                 if(chatAddress == null)
                     return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_MULTICAST_ADDRESS_RUN_OUT,
@@ -159,7 +167,7 @@ public class TuringTask {
                 Document doc = new Document(documentName, username, numSections, chatAddress);
 
                 //inserisco istanza del documento nella HashTable dei documenti
-                this.serverDataStructures.insertHashDocument(document, doc);
+                this.serverDataStructures.insertHashDocument(documentName, doc);
 
                 //inserisco documento nell'insieme dei documenti che utente puo' modificare
                 //@TODO VERIFICARE SE AVVIENE UPDATE NELLA HASHTABLE UTENTI

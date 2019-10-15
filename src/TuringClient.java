@@ -163,6 +163,12 @@ public class TuringClient {
      */
     private static void startLoopRequestsAndResponses(){
 
+        /*
+          variabile nella quale memorizzo, di volta in volta, l'utente che si connette al servizio per
+          personalizzare le stampe delle richieste e delle risposte ricevute dal Server
+         */
+        String currentUser = "";
+
         while (true) {
 
             System.out.println();
@@ -199,6 +205,13 @@ public class TuringClient {
                     case SEND:        //multicast
                     case RECEIVE:{   //multicast
 
+                        //in caso di LOGIN devo memorizzare username che si e' connesso per personalizzare
+                        //sue stampe
+                        if(currentCommand == CommandType.LOGIN){
+                            //memorizzousername connesso, per personalizzare le stampe
+                            currentUser = commandLineManagement.getCurrentArg1();
+                        }
+
                         //recupero eventuali argomenti
                         String currentArg1 = commandLineManagement.getCurrentArg1();
                         String currentArg2 = commandLineManagement.getCurrentArg2();
@@ -212,11 +225,17 @@ public class TuringClient {
                         }
 
                         //attendo risposta dal Server
-                        check = clientMessageManagement.readResponse();
+                        check = clientMessageManagement.readResponse(currentUser);
 
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing >> Impossibile reperire la risposta del Server]");
                             closeClientSocket();
+                        }
+
+                        //in caso di LOGOUT devo resettare username connesso
+                        if(currentCommand == CommandType.LOGOUT){
+                            //utente connesso si e' appena disconesso
+                            currentUser = "";
                         }
                     }
                 }

@@ -20,49 +20,36 @@ public class TuringListener implements Runnable {
      * Indirizzo Inet del Server
      */
     private SocketAddress address;
+    /**
+     * Classe che contiene le variabili di configurazione del Server
+     */
     private ServerConfigurationsManagement configurationsManagement;
+    /**
+     * timeout della select (), ricavato dal file di configurazione
+     */
+    private int TIMEOUT;
+    /**
+     * Classe che contiene le strutture dati del Server
+     */
     private ServerDataStructures serverDataStructures;
+    /**
+     * ThreadPool utilizzato dal Server per gestire le richieste che provvengono dai Clients
+     */
     private ThreadPoolExecutor threadPool;
-    private SimpleDateFormat dateFormat;  //classe necessaria per recuperare ora attuale
+    /**
+     * Classe necessaria per recuperare ora attuale
+     */
+    private SimpleDateFormat dateFormat;
 
     /**
-     * Funzione che si occupa di attivare l'RMI per consentire agli utenti di registrarsi al servizio
-     * @param RMIPort porta RMI da utilizzare per il aprire il registro RMI
-     * @return SUCCESS se l'attivazione del servizio di registrazione tramite RMI ha avuto successo
-     *         FAILURE altrimenti
+     * Costruttore della classe TuringListener
+     * @param configurationsManagement classe che contiene le variabili di configurazione estrappolate dal file
+     *                                 di configurazione del Server (parsing fatto dal thread TuringServer che
+     *                                 ha avviato questo Listener-thread)
      */
-    private FunctionOutcome activateRMI(int RMIPort){
-        //creo oggetto remoto
-        TuringRegistrationInterface turingRegistrationRMI = new TuringRegistrationRMI(this.configurationsManagement,
-                                                                                            this.serverDataStructures);
-        //creo stub, che Client chiamera' per utilizzare oggetto remoto del Server
-        TuringRegistrationInterface stub = null;
-        try {
-            //remoteObj = oggetto remoto del Server
-            //port = porta utilizzata per esportare l'oggetto remoto sul Registro(=0 qualsiasi)
-            stub = (TuringRegistrationInterface) UnicastRemoteObject.exportObject(turingRegistrationRMI,0);
-
-            //creo un Registro locale del Server, nel quale andro' a memoriizzare il riferimento (stub) all'oggetto
-            // remoto, reperibile dai Clients
-            LocateRegistry.createRegistry(RMIPort); //portaRMI di default = 1099
-
-            //reperiamo il Registro locale appena creato
-            Registry reg = LocateRegistry.getRegistry(this.configurationsManagement.getServerHost(), RMIPort);
-
-            //associamo una chiave univoca allo stub (riferimento dell'oggetto remoto)
-            //e inseriamo la coppia (chiave, stub) nel Registro => stub ora e' reperibile per qualsiasi
-            //Client in grado di localizzare questo Registro locale
-            reg.rebind("TURING-RMI-REGISTRATION", stub);
-
-            return FunctionOutcome.SUCCESS;
-        } catch (RemoteException e) {
-            e.printStackTrace();
-            return FunctionOutcome.FAILURE;
-        }
-    }
-
     public TuringListener(ServerConfigurationsManagement configurationsManagement){
         this.configurationsManagement = configurationsManagement;
+        this.TIMEOUT = this.configurationsManagement.getConnectionTimeout();
         this.address = new InetSocketAddress(this.configurationsManagement.getServerHost(),
                                                                         this.configurationsManagement.getServerPort());
         this.dateFormat = new SimpleDateFormat("hh:mm:ss");
@@ -92,23 +79,51 @@ public class TuringListener implements Runnable {
         System.out.println("[Turing] >> ThreadPool creato con successo");
     }
 
-    public void addAgainSatisfiedSocketChannelsToSelector(Selector selector){
+    /**
+     * Funzione che si occupa di attivare l'RMI per consentire agli utenti di registrarsi al servizio
+     * @param RMIPort porta RMI da utilizzare per il aprire il registro RMI
+     * @return SUCCESS se l'attivazione del servizio di registrazione tramite RMI ha avuto successo
+     *         FAILURE altrimenti
+     */
+    private FunctionOutcome activateRMI(int RMIPort){
+        //creo oggetto remoto
+        TuringRegistrationInterface turingRegistrationRMI = new TuringRegistrationRMI(this.configurationsManagement,
+                this.serverDataStructures);
+        //creo stub, che Client chiamera' per utilizzare oggetto remoto del Server
+        TuringRegistrationInterface stub = null;
+        try {
+            //remoteObj = oggetto remoto del Server
+            //port = porta utilizzata per esportare l'oggetto remoto sul Registro(=0 qualsiasi)
+            stub = (TuringRegistrationInterface) UnicastRemoteObject.exportObject(turingRegistrationRMI,0);
 
-        System.out.println("Sono in addAgainSatisfiedSocketChannelsToSelector");
+            //creo un Registro locale del Server, nel quale andro' a memoriizzare il riferimento (stub) all'oggetto
+            // remoto, reperibile dai Clients
+            LocateRegistry.createRegistry(RMIPort); //portaRMI di default = 1099
+
+            //reperiamo il Registro locale appena creato
+            Registry reg = LocateRegistry.getRegistry(this.configurationsManagement.getServerHost(), RMIPort);
+
+            //associamo una chiave univoca allo stub (riferimento dell'oggetto remoto)
+            //e inseriamo la coppia (chiave, stub) nel Registro => stub ora e' reperibile per qualsiasi
+            //Client in grado di localizzare questo Registro locale
+            reg.rebind("TURING-RMI-REGISTRATION", stub);
+
+            return FunctionOutcome.SUCCESS;
+        } catch (RemoteException e) {
+            e.printStackTrace();
+            return FunctionOutcome.FAILURE;
+        }
+    }
+
+    public void addAgainSatisfiedSocketChannelsToSelector(Selector selector){
 
         //recupero SocketChannels soddisfatti da reinserire nel selettore
         BlockingQueue<SocketChannel> selectorKeysToReinsert =  this.serverDataStructures.getSelectorKeysToReinsert();
-
-        for(SocketChannel socketChannel: this.serverDataStructures.getSelectorKeysToReinsert()){
-            System.out.println("sock = " + socketChannel);
-        }
 
         //rimuovo SocketChannels dalla BlockingQueue e li trasferisco in un vettore, per poter iterare tale
         //vettore e registrare nuovamente, uno a uno, i SocketChannels al selettore per leggere nuove richieste
         Vector<SocketChannel> socketChannelsList = new Vector<>();
         selectorKeysToReinsert.drainTo(socketChannelsList);
-
-        System.out.println("socketChannelsList size = " + socketChannelsList.size());
 
         //@TODO verificare se devo usare "this.serverDataStructures.removeSelectorKeysToReinsert" (lo dovrebbe fare drainTo)
 
@@ -170,17 +185,20 @@ public class TuringListener implements Runnable {
             System.out.println();
             System.out.println("[Turing] >> Inizio ciclo di ascolto");
 
-            while (!Thread.interrupted()) {
+            //while (!Thread.interrupted()) {
+            while (true) {
 
                 //riaggiungo al selettore i SocketChannels che sono stati tolti per essere aggiunti alla coda di lavoro
                 // e consentire agli workers di soddisfare la loro richiesta e l'invio dell'esito dell'operazione.
                 //La riaggiunta permette la lettura di nuove richieste da parte di questi Clients
                 addAgainSatisfiedSocketChannelsToSelector(selector);
 
-                System.out.println("Sono nel ciclo di ascolto");
-
                 //seleziono clients-sockets pronti per fare un'operazione di IO
-                selector.select();
+                //N.N Setto un timer per poter sbloccare quei SochetChannels che sono stati reinseriti dagli Workers
+                // (nel selectorKeysToReinsert set) in seguito al soddisfacimento di una loro richiesta, perche'
+                //altrimenti se non subbentrano richieste da nuovi SochetChannels TuringListener rimane bloccato
+                //in "eterno"
+                selector.select(this.TIMEOUT);
 
                 //recupero lista clients-sockets pronti
                 Set<SelectionKey> selectedKeys = selector.selectedKeys();

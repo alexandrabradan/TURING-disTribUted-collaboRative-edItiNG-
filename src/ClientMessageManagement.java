@@ -102,6 +102,7 @@ public class ClientMessageManagement {
 
         int requestLength = request.length(); //ricavo lunghezza del body
 
+
         this.header.putInt(command.ordinal()); //ordinale() => reperisco valore numerico enum
         this.header.putInt(requestLength); //inserisco dim. body
 
@@ -137,10 +138,11 @@ public class ClientMessageManagement {
      * a) ServerResponse codificato come ENUM (intero)
      * b) dimensione eventuale BODY della risposta
      * 2. il BODY delle risposta del Server
+     * @param currentUser username corrente connesso, per effettuare stampe personalizzate
      * @return SUCCESS se la lettura della dimensione delle risposta e la risposta sono andati a buon fine
      *         FAILURE altrimenti
      */
-    public FunctionOutcome readResponse(){
+    public FunctionOutcome readResponse(String currentUser){
         //ricevo HEADER contenente:
         //tipo di risposta => e' ENUM => intero => codificato con 4 bytes
         // dim. body risposta => intero => codificato con 4 bytes
@@ -174,9 +176,9 @@ public class ClientMessageManagement {
 
                 if(check == FunctionOutcome.FAILURE)
                     return FunctionOutcome.FAILURE; //lettura BODY fallita
-                else return manageResponse(responseType, responseBodyLength); //lettura HEADER+BODY successo => stampa personalizzata
+                else return manageResponse(responseType, responseBodyLength, currentUser); //lettura HEADER+BODY successo => stampa personalizzata
             }
-            else return manageResponse(responseType, responseBodyLength); //lettura HEADER successo => stampa personalizzata
+            else return manageResponse(responseType, responseBodyLength, currentUser); //lettura HEADER successo => stampa personalizzata
         }
         else return FunctionOutcome.FAILURE; //lettura HEADER fallita
     }
@@ -185,10 +187,11 @@ public class ClientMessageManagement {
      * Funzione che stampa la risposta personalizzata del Server alla richiesta fatta dal Client
      * @param responeType risposta del Server (sottofroma di enum "ServerResponse")
      * @param responseBodyLenght eventuale contenuto della risposta del Server
+     * @param currentUser username corrente connesso, per effettuare stampe personalizzate
      * @return SUCCESS se la lettura della dimensione delle risposta e la risposta sono andati a buon fine
      *         FAILURE altrimenti
      */
-    private FunctionOutcome manageResponse(ServerResponse responeType, int responseBodyLenght){
+    private FunctionOutcome manageResponse(ServerResponse responeType, int responseBodyLenght, String currentUser){
 
         String responseBody = "";
 
@@ -204,58 +207,58 @@ public class ClientMessageManagement {
             case OP_OK:{  //discrimino quale operazione ha avuto successo
                 switch (this.currentCommand){
                     case LOGIN:{
-                        System.out.println("[Turing] >> Login avvenuto con successo");
+                        System.out.println(String.format("[%s] >> Login avvenuto con successo", currentUser));
                         break;
                     }
                     case LOGOUT:{
-                        System.out.println(String.format("[Turing] >> Logout dell'utente |%s| avvenuto con " +
-                                "successo", currentArg1));
+                        System.out.println(String.format("[%s] >> Logout avvenuto con successo", currentUser));
                         break;
                     }
                     case CREATE:{
-                        System.out.println(String.format("[Turing] >> Creazione del documento |%s| con |%s| sezioni" +
-                                " avvenuta con successo", currentArg1, currentArg2));
+                        System.out.println(String.format("[%s] >> Creazione del documento |%s| con |%s| sezioni" +
+                                " avvenuta con successo", currentUser, currentArg1, currentArg2));
                         break;
                     }
                     case SHARE:{
-                        System.out.println(String.format("[Turing] >> Condivisione del documento |%s| con l'utente " +
-                                "|%s| avvenuto con successo", currentArg1, currentArg2));
+                        System.out.println(String.format("[%s] >> Condivisione del documento |%s| con l'utente " +
+                                "|%s| avvenuto con successo", currentUser, currentArg1, currentArg2));
                         break;
                     }
                     case SHOW_DOCUMENT:{
-                        System.out.println(String.format("[Turing] >> Contenuto del documento |%s|:", currentArg1));
+                        System.out.println(String.format("[%s] >> Contenuto del documento |%s|:", currentUser, currentArg1));
                         //@TODO APRIRE TUTTE LE SEZIONI DEL DOCUMENTO RICHIESTO
                         break;
                     }
                     case SHOW_SECTION:{
-                        System.out.println(String.format("[Turing] >> Contenuto della sezione |%s| del documento" +
-                                " |%s|:", currentArg2, currentArg1));
+                        System.out.println(String.format("[%s] >> Contenuto della sezione |%s| del documento" +
+                                " |%s|:", currentUser, currentArg2, currentArg1));
                         //@TODO APRIRE LA SEZIONE RICHIESTA
                         break;
                     }
                     case LIST:{
-                        System.out.println("[Turing] >> Recap tuoi documenti");
+                        System.out.println(String.format("[%s] >> Recap tuoi documenti", currentUser));
                         System.out.println(responseBody);  //@TODO SPLIT PER STAMPARE CONTENUTO
                         break;
                     }
                     case EDIT:{
-                        System.out.println(String.format("[Turing] >> Inizio modifica della sezione |%s| del" +
-                                " documento |%s|", currentArg2, currentArg1));
+                        System.out.println(String.format("[%s] >> Inizio modifica della sezione |%s| del" +
+                                " documento |%s|", currentUser, currentArg2, currentArg1));
                         //@TODO APRIRE EDITOR PER EDITARE LA SEZIONE
                         break;
                     }
                     case END_EDIT:{
-                        System.out.println(String.format("[Turing] >> Fine modifica della sezione |%s| del" +
-                                " documento |%s|", currentArg2, currentArg1));
+                        System.out.println(String.format("[%s] >> Fine modifica della sezione |%s| del" +
+                                " documento |%s|", currentUser, currentArg2, currentArg1));
                         //@TODO SALVATAGGIO SEZIONE E CHIUSUA EDITOR (se non gia' fatta)
                         break;
                     }
                     case SEND:{
-                        System.out.println("[Turing] >> Invio messaggio sulla Chat avvenuto con successo");
+                        System.out.println(String.format("[%s] >> Invio messaggio sulla Chat avvenuto con successo",
+                                                                                                        currentUser));
                         break;
                     }
                     case RECEIVE:{
-                        System.out.println("[Turing] >> Hai un nuovo messaggio sulla Chat");
+                        System.out.println(String.format("[%s] >> Hai un nuovo messaggio sulla Chat", currentUser));
                         System.out.println(responseBody);
                         //@TODO DECIDERE LIMITE HISTORY
                         break;
@@ -291,7 +294,7 @@ public class ClientMessageManagement {
                 break;
             }
             case OP_SECTION_EXCEED_LIMIT:{
-                System.err.println(String.format("[ERR] >> Numero sezioni |%s| eccede il valore consentito.", currentArg1));
+                System.err.println(String.format("[ERR] >> Numero sezioni |%s| eccede il valore consentito.", currentArg2));
                 break;
             }
             case OP_USER_ALREADY_ONLINE:{

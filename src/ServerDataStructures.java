@@ -1,5 +1,6 @@
 import java.net.InetAddress;
 import java.nio.channels.SocketChannel;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -47,7 +48,7 @@ public class ServerDataStructures {
      * documento per editare
      * @return this.multicast_set
      */
-    public BlockingQueue<InetAddress> getMlticast_set(){
+    public BlockingQueue<InetAddress> getMulticast_set(){
         return this.multicast_set;
     }
 
@@ -130,6 +131,18 @@ public class ServerDataStructures {
     public String removeFromOnlineUsers(SocketChannel client) {
         //rimuovo SocketChannel dell'utente e l'utente dalla  dalla ht utenti online
         return online_users.remove(client);
+    }
+
+    public void printOnlineUsers(){
+        System.out.println("STAMPA UTENTI ONLINE");
+
+        for (Map.Entry<SocketChannel, String> entry : this.online_users.entrySet()) {
+            SocketChannel key = entry.getKey();
+            String value = entry.getValue();
+
+            System.out.print ("socket: " + key + " username: " + value + " ");
+        }
+        System.out.println();
     }
 
     //**********************METODI PER GESTIRE INSIEME INDIRIZZI DI MULTICAST***************************************//
@@ -226,6 +239,14 @@ public class ServerDataStructures {
      */
     public void insertHashDocument(String document, Document doc) {
         this.hash_documents.put(document, doc);
+    }
+
+    /**
+     * Funzione che stampa la tabella hash dei documenti
+     */
+    public void printHashDoc(){
+        System.out.println("STAMAPA TABELLA HASH DOCUMENTI");
+        this.hash_documents.forEach((key, value) -> System.out.println(key + " " + value.printDoc()));
     }
 
     //**************************METODI PER GESTIRE INSIEME SOCKETS DA REINSERIRE NEL SELECTOR************************//

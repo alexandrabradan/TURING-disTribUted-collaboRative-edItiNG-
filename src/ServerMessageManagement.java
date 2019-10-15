@@ -109,6 +109,7 @@ public class ServerMessageManagement {
             this.currentCommand = CommandType.values()[this.header.getInt()]; //converto valore numerico nel rispettivo ENUM
             int requestBodyLength = this.header.getInt(); //reperisco dimensione BODY
 
+
             //leggo eventuale BODY della richiesta
             if(requestBodyLength > 0){
 
@@ -203,6 +204,7 @@ public class ServerMessageManagement {
                 //invio BODY al Client
                 return this.socketChannelWriteManagement.write(this.body, this.body.limit()); //invio BODY
             }
+
             return FunctionOutcome.SUCCESS; //invio HEADER avvenuto con successo
         }
         else
