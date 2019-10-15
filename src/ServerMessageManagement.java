@@ -202,10 +202,21 @@ public class ServerMessageManagement {
                 this.body.flip(); //modalita' lettura (position=0, limit = bytesWritten)
 
                 //invio BODY al Client
-                return this.socketChannelWriteManagement.write(this.body, this.body.limit()); //invio BODY
+                check = this.socketChannelWriteManagement.write(this.body, this.body.limit()); //invio BODY
+
+                if(check == FunctionOutcome.FAILURE)
+                    return FunctionOutcome.FAILURE; //invio BODY fallito
             }
 
-            return FunctionOutcome.SUCCESS; //invio HEADER avvenuto con successo
+            try {
+                System.out.println(String.format("[%s] >> Invio risposta |%s| al socket |%s| avvenuta con successo",
+                        Thread.currentThread().getName(), serverResponse, this.clientSocket.getRemoteAddress().toString()));
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.exit(-1);
+            }
+
+            return FunctionOutcome.SUCCESS; //invio HEADER (ed eventuale BODY) avvenuto con successo
         }
         else
             return FunctionOutcome.FAILURE; //invio HEADER fallito

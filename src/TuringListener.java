@@ -11,9 +11,7 @@ import java.util.Calendar;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.Vector;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 
 public class TuringListener implements Runnable {
     /**
@@ -36,6 +34,10 @@ public class TuringListener implements Runnable {
      * ThreadPool utilizzato dal Server per gestire le richieste che provvengono dai Clients
      */
     private ThreadPoolExecutor threadPool;
+    /**
+     * Riferimento alla coda di lavoro
+     */
+    private LinkedBlockingQueue<Runnable> workingQueue;
     /**
      * Classe necessaria per recuperare ora attuale
      */
@@ -74,7 +76,13 @@ public class TuringListener implements Runnable {
         System.out.println("[Turing] >> Fase di creazione del ThreadPool");
         //dal file di configurazione ho ricavato numero workers da attivare
         int numWorkersInThreadPool = this.configurationsManagement.getNumWorkersInThreadPool();
-        this.threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(numWorkersInThreadPool);
+
+        //alloco coda di lavoro
+        this.workingQueue = new LinkedBlockingQueue<Runnable>();
+
+        //creo ThreadPool personalizzato (faccio questo per assegnare nomi desiderati agli Workers)
+        this.threadPool = new MyExecutor(numWorkersInThreadPool, numWorkersInThreadPool, 0L,
+                TimeUnit.MILLISECONDS, this.workingQueue);
 
         System.out.println("[Turing] >> ThreadPool creato con successo");
     }

@@ -217,13 +217,21 @@ public class TuringWorker implements Runnable{
             //chiudo il SocketChannel del Client di cui il Worker si sta occupando
             this.client.close();
 
+            System.out.println(String.format("[%s] >> Socket |%s| chiuso con successo",
+                    Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
+
             //termino Worker-thread corrente
             Thread.currentThread().interrupt();
 
         } catch (IOException e) {
             e.printStackTrace();
-            System.err.println(String.format("[Turing] Impossibile chiudere il SocketChannel |%s| nel Worker |%s|",
-                    this.client, Thread.currentThread()));
+            try {
+                System.err.println(String.format("[%s] Impossibile chiudere il SocketChannel |%s|",
+                        Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                System.exit(-1);
+            }
             System.exit(-1);
         }
     }
@@ -234,10 +242,6 @@ public class TuringWorker implements Runnable{
      */
     public void run(){
 
-        //assegno nome al Worker-thread per effettuare stampe personalizzate
-        //Thread.currentThread().setName("Worker" + this.client);
-
-
         //resetto variabili eventualmente inizializzate precedentemente
         setDefaultVariablesValues();
 
@@ -245,6 +249,14 @@ public class TuringWorker implements Runnable{
         FunctionOutcome readRequest = this.serverMessageManagement.readRequest();
 
         if(readRequest == FunctionOutcome.FAILURE){
+            try {
+                System.err.println(String.format("[%s] >> Lettura richiesta del socket |%s| fallita",
+                        Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.exit(-1);
+            }
+
             //problemi I/O con SocketChannel del Client => chiudo SocketChannel e termino Worker-thread
             endWorker();
         }
@@ -255,12 +267,28 @@ public class TuringWorker implements Runnable{
         this.currentArg1 = this.serverMessageManagement.getCurrentArg1();
         this.currentArg2 = this.serverMessageManagement.getCurrentArg2();
 
+        try {
+            System.out.println(String.format("[%s] >> Lettura richiesta |%s| del socket |%s| avvenuta con successo",
+                    Thread.currentThread().getName(), this.currentCommand, this.client.getRemoteAddress().toString()));
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+
         //a seconda della richiesta/comando letto verifico legittimita' argomenti
         //1. se argomenti non sono legittimi, invio msg di errore al Client
         //2. se argomenti sono legittimi, proveddo a soddisfare richiesta e inviare esito al Client
         FunctionOutcome sendResponse = satisfyRequest();
 
         if(sendResponse == FunctionOutcome.FAILURE){
+            try {
+                System.err.println(String.format("[%s] >> Invio risposta al socket |%s| fallita",
+                        Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.exit(-1);
+            }
+
             //problemi I/O con SocketChannel del Client => chiudo SocketChannel e termino Worker-thread
             endWorker();
         }
@@ -269,7 +297,6 @@ public class TuringWorker implements Runnable{
             //inserisco il SocketChannel del Client nell'insieme di channels da reinserire nel Selector per
             //attendere lettura nuove richieste
             this.dataStructures.addSelectorKeysToReinsert(this.client);
-
         }
     }
 }
