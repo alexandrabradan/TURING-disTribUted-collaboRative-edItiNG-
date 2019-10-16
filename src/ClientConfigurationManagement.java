@@ -204,7 +204,7 @@ public class ClientConfigurationManagement {
         System.out.println("- Porta di registrazione = " + this.serverPort );
         System.out.println( "- Porta utilizzata per gli inviti = " + this.RMIPort);
         System.out.println("- Valore del Timeout = " + this.connectionTimeout);
-        System.out.println("- Directory radice dove andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
+        System.out.println("- Directory radice andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
         System.out.println();
     }
 }

@@ -122,11 +122,10 @@ public class Document {
     /**
      * Funzione che prova a richiedere la lock su una sezione
      * @param section sezione di cui acquisire la mutua esclusione
-     * @return true se è stato possibile richiedere la lock della sezione
-     *  	   false altrimenti
+     * @return true ssezione di cui acquisire la lock
      */
-    public synchronized boolean lockSection(int section) {
-        return sectionsLockArray[section].tryLock();
+    public synchronized void lockSection(int section) {
+        sectionsLockArray[section].lock();
     }
 
     /**
@@ -143,7 +142,7 @@ public class Document {
      * Funzione che rilascia la lock di una sezione
      * @param section sezione di cui rilasciare la lock
      */
-    public synchronized void unlockSezione(int section) {
+    public synchronized void unlockSection(int section) {
         sectionsLockArray[section].unlock();
     }
 

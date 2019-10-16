@@ -1,7 +1,11 @@
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 
 public class ClientMessageManagement {
     /**
@@ -36,13 +40,24 @@ public class ClientMessageManagement {
      * Classe per scrivere la richiesta al Server sul SocketChannel
      */
     private SocketChannelWriteManagement socketChannelWriteManagement;
+    /**
+     * Classe per reperire le variabili di configurazione del Client
+     */
+    private ClientConfigurationManagement configurationsManagement;
+    /**
+     * Classe per gestire  cartelle e file
+     */
+    private FileManagement fileManagement;
 
     /**
      * Costruttore della classe RequestManagement
      * @param clientSocket SocketChannel del Client di cui bisogna inviare richiesta e leggere risposta
+     * @param configurationsManagement per reperire var. di configurazione
      */
-    public ClientMessageManagement(SocketChannel clientSocket){
+    public ClientMessageManagement(SocketChannel clientSocket, ClientConfigurationManagement configurationsManagement){
         this.clientSocket = clientSocket;
+        this.fileManagement = new FileManagement();
+        this.configurationsManagement = configurationsManagement;
         this.socketChannelReadManagement = new SocketChannelReadManagement(this.clientSocket);
         this.socketChannelWriteManagement = new SocketChannelWriteManagement(this.clientSocket);
 
@@ -100,15 +115,15 @@ public class ClientMessageManagement {
             request = arg1;
         }
 
-        int requestLength = request.length(); //ricavo lunghezza del body
+        byte[] requestBytes = request.getBytes(); //converto BODY in bytes per scoprire sua lunghezza
+        int requestLength = requestBytes.length; //ricavo lunghezza del BODY
 
-
-        this.header.putInt(command.ordinal()); //ordinale() => reperisco valore numerico enum
+        this.header.putInt(command.ordinal()); //ordinale() => reperisco valore numerico ENUM
         this.header.putInt(requestLength); //inserisco dim. body
 
         this.header.flip(); //modalita' lettura (position=0, limit = bytesWritten)
 
-        //invio HEADER al Server
+        //invio HEADER
         FunctionOutcome check = this.socketChannelWriteManagement.write(this.header, 8);
 
         if(check == FunctionOutcome.SUCCESS){  //invio HEADER avvenuto con successo
@@ -184,6 +199,76 @@ public class ClientMessageManagement {
     }
 
     /**
+     * Funzione che si occupa di attendere l'invio da parte del Server del contenuto delle sezioni
+     * del documento passati come argomento
+     * @param i numero della sezione da leggere ed eventualemente creare/sovvrascrivere
+     * @return SUCCESS se la lettura e' andata a buon fine
+     *         FAILURE altrimenti
+     */
+    public FunctionOutcome readAndCreateSectionsForClient(String document, int i) {
+
+        //ricevo HEADER contenente:
+        // OP_SECTION_IS_COMIGN => enum => flag
+        // dim. body (contenuto file/sezione) => intero => codificato con 4 bytes
+        this.header = ByteBuffer.allocate(8);
+
+        this.header.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
+
+        int contentLength = 0;  //lunghezza BODY (contenuto del file)
+
+        //leggo dimensione risposta
+        FunctionOutcome check = this.socketChannelReadManagement.read(this.header, 8);
+
+        if (check == FunctionOutcome.SUCCESS) { //lettura
+
+            this.header.flip(); //modalita' lettura (position=0, limit = bytesWritten)
+
+            ServerResponse serverResponse = ServerResponse.values()[this.header.getInt()]; //converto valore numerico nel rispettivo ENUM
+            contentLength = this.header.getInt(); //reperisco dimensione BODY
+
+            //file/sezione vuoto
+            if(contentLength == 0){
+                //creo semplicemente sezione
+                String sectionName = document + i + ".txt";
+                this.fileManagement.createFile(sectionName);
+                return FunctionOutcome.SUCCESS;
+            }
+
+            //leggo eventuale BODY della risposta
+            if (contentLength > 0) {
+
+                //alloco nuovo buffer per leggervi BODY, di dimensione letta sopra
+                this.body = ByteBuffer.allocate(contentLength);
+
+                this.body.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
+
+                //leggo BODY della risposta
+                check = this.socketChannelReadManagement.read(this.body, body.limit());
+
+                if (check == FunctionOutcome.FAILURE)
+                    return FunctionOutcome.FAILURE; //lettura BODY fallita
+
+                //creo file/sezione (controllo che non esistesse prima viene fatto in  ClientCommandLineManagement)
+                //altrimenti lo sovrascrivo
+                String sectionName = document + i + ".txt";
+                this.fileManagement.createFile(sectionName);
+
+                this.body.flip(); //modalita' lettura (position=0, limit = bytesWritten)
+
+                //recupero contenuto del file
+                String content = new String(this.body.array(), StandardCharsets.UTF_8);
+
+                //scrivo contenuto sul file
+                this.fileManagement.writeFile(sectionName, content);
+
+                return FunctionOutcome.SUCCESS; //lettura HEADER+BODY successo
+            }
+            else return FunctionOutcome.SUCCESS; //lettura HEADER successo
+        }
+        else return FunctionOutcome.FAILURE; //lettura HEADER fallita
+    }
+
+    /**
      * Funzione che stampa la risposta personalizzata del Server alla richiesta fatta dal Client
      * @param responeType risposta del Server (sottofroma di enum "ServerResponse")
      * @param responseBodyLenght eventuale contenuto della risposta del Server
@@ -225,19 +310,66 @@ public class ClientMessageManagement {
                         break;
                     }
                     case SHOW_DOCUMENT:{
-                        System.out.println(String.format("[%s] >> Contenuto del documento |%s|:", currentUser, currentArg1));
-                        //@TODO APRIRE TUTTE LE SEZIONI DEL DOCUMENTO RICHIESTO
+
+                        //creo cartella/documento (eventualmente da cancellare se subbentrano errori)
+                        //se non esiste gia'
+                        String clientDownloadDirectory = this.configurationsManagement.getClientsDownloadsDocumentsDirectory();
+                        String documentDirectory = clientDownloadDirectory + currentArg1 + "/";
+
+                        if(!this.fileManagement.checkEsistenceDirectory(documentDirectory))
+                            this.fileManagement.createDirectory(documentDirectory);
+
+                        //ho letto numero sezioni del documento
+                        String numSectionsInString = new String(this.body.array(), StandardCharsets.UTF_8);
+                        int numSections = Integer.parseInt(numSectionsInString);
+
+                        //mi appresto a fare un ciclo di "numSections" per scaricare files/sezioni
+                        for(int i = 1; i <= numSections; i++){
+                            FunctionOutcome check = readAndCreateSectionsForClient(documentDirectory, i);
+
+                            if(check == FunctionOutcome.FAILURE){
+                                System.out.println(String.format("[%s] >> Impossibile scaricare la sezione |%s| del " +
+                                        "documento |%s|. Download del documento fallito", currentUser, i,  currentArg1));
+
+                                //cancello documento/cartella creato
+                                this.fileManagement.deleteDirectory(documentDirectory);
+                            }
+                        }
+
+                        System.out.println(String.format("[%s] >> Contenuto del documento |%s| scaricato con successo",
+                                currentUser, currentArg1));
+
                         break;
                     }
                     case SHOW_SECTION:{
-                        System.out.println(String.format("[%s] >> Contenuto della sezione |%s| del documento" +
-                                " |%s|:", currentUser, currentArg2, currentArg1));
-                        //@TODO APRIRE LA SEZIONE RICHIESTA
+                        //creo cartella/documento se non esiste gia'
+                        String clientDownloadDirectory = this.configurationsManagement.getClientsDownloadsDocumentsDirectory();
+                        String documentDirectory = clientDownloadDirectory + currentArg1 + "/";
+
+                        if(!this.fileManagement.checkEsistenceDirectory(documentDirectory))
+                            this.fileManagement.createDirectory(documentDirectory);
+
+                        //mi appresto a leggere la sezione richiesta
+                        FunctionOutcome check = readAndCreateSectionsForClient(documentDirectory, Integer.parseInt(currentArg2));
+
+                        if(check == FunctionOutcome.FAILURE){
+                            System.out.println(String.format("[%s] >> Impossibile scaricare la sezione |%s| del " +
+                                    "documento |%s|. Download della sezione fallito", currentUser,
+                                                                     Integer.parseInt(currentArg2),  currentArg1));
+                        }
+                        else{
+                            System.out.println(String.format("[%s] >> Sezione |%d| del documento |%s| scaricata con successo",
+                                    currentUser,  Integer.parseInt(currentArg2), currentArg1));
+                        }
                         break;
                     }
                     case LIST:{
-                        System.out.println(String.format("[%s] >> Recap tuoi documenti:", currentUser));
-                        System.out.println(responseBody);
+                        if(responseBody.isEmpty())
+                            System.out.println(String.format("[%s] >> Non ci sono ancora documenti da mostrare", currentUser));
+                        else{
+                            System.out.println(String.format("[%s] >> Recap tuoi documenti:", currentUser));
+                            System.out.println(responseBody);
+                        }
                         break;
                     }
                     case EDIT:{
@@ -280,6 +412,11 @@ public class ClientMessageManagement {
                 System.err.println(String.format("[ERR] >> Documento |%s| NON esistente.", currentArg1));
                 break;
             }
+            case OP_DOCUMENT_PERMISSION_DENIED:{
+                System.err.println(String.format("[ERR] >> Non hai i permessi per fare il download del documento |%s|" +
+                        ".", currentArg1));
+                break;
+            }
             case OP_SECTION_NOT_EXIST:{
                 System.err.println(String.format("[ERR] >> Sezione |%s| del documento |%s| NON " +
                         "registrato.", currentArg2, currentArg1));
@@ -302,7 +439,7 @@ public class ClientMessageManagement {
                 break;
             }
             case OP_PASSWORD_INCORRECT:{
-                System.err.println(String.format("[ERR] >> Password |%s| ERRATO.", currentArg2));
+                System.err.println(String.format("[ERR] >> Password |%s| ERRATA.", currentArg2));
                 break;
             }
             case OP_DOCUMENT_ALREADY_EXIST:{

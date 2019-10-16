@@ -142,7 +142,7 @@ public class TuringClient {
             }
 
             //connessione al Server avvenuta con successo => creo istanze per scrivere richieste e leggere risposte
-            clientMessageManagement = new ClientMessageManagement(clientSocket);
+            clientMessageManagement = new ClientMessageManagement(clientSocket, configurationsManagement);
 
             return FunctionOutcome.SUCCESS;
 

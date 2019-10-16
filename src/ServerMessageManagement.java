@@ -3,6 +3,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 
+
 public class ServerMessageManagement {
     /**
      * SocketChannel del Client di cui leggere richiesta, soddisfare domanda ed inviare esito operazione
@@ -180,7 +181,8 @@ public class ServerMessageManagement {
 
         this.header.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
 
-        int responseBodyLength = body.length(); //ricavo lunghezza del BODY
+        byte[] bodyBytes = body.getBytes(); //converto BODY in bytes per scoprire sua lunghezza
+        int responseBodyLength = bodyBytes.length; //ricavo lunghezza del BODY
 
         this.header.putInt(serverResponse.ordinal()); //ordinale() => reperisco valore numerico enum
         this.header.putInt(responseBodyLength); //inserisco dim. BODY
@@ -197,7 +199,7 @@ public class ServerMessageManagement {
 
                 this.body.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
 
-                this.body.put(body.getBytes());  //inserisco messaggio di risposta nel buffer
+                this.body.put(bodyBytes);  //inserisco messaggio di risposta nel buffer
 
                 this.body.flip(); //modalita' lettura (position=0, limit = bytesWritten)
 

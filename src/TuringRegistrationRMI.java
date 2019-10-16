@@ -92,16 +92,6 @@ public class TuringRegistrationRMI implements TuringRegistrationRMIInterface {
                             User newUser = new User(username, password);
                             this.serverDataStructures.insertHashUser(username, newUser);
 
-                            //creo cartella in cui memorizzare i documenti dell'utente da salvare
-                            //creo cartella in cui memorizzare i documenti che l'utente sta editando
-                            //N.B. cartelle prendono il nome dell'utente perche' usernames e' univoco => nome cartelle univoci
-                            String userSaveDirectoryPath = this.serverConfigurationsManagement.getServerSaveDocumentsDirectory()
-                                    + username + "/";
-                            String userEditDirectoryPath = this.serverConfigurationsManagement.getServerEditDocumentsDirectory()
-                                    + username + "/";
-                            this.fileManagement.createDirectory(userEditDirectoryPath);
-                            this.fileManagement.createDirectory(userSaveDirectoryPath);
-
                             return ServerResponse.OP_OK; //utente registrato con successo
                         }
                         return ServerResponse.OP_PASSWORD_TOO_LONG; //password troppo lunga

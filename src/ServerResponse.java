@@ -4,6 +4,7 @@ public enum ServerResponse{
     OP_USER_NOT_ONLINE,  //utente deve essere loggato per effettuare qualsiasi operazione(eccetto registrazione)
     OP_USER_NOT_REGISTERED,  //utente non registrato al servizio (verifica effettuata in fase di login)
     OP_DOCUMENT_NOT_EXIST,  //documento da condividere/scaricare non esiste
+    OP_DOCUMENT_PERMISSION_DENIED, //utente non ha permessi per visualizzare un documento (non e' creatore ne' collaboratore)
     OP_SECTION_NOT_EXIST,  //sezione da editare/scarica non esiste
     OP_USERNAME_INAVLID_CHARACTERS, //username deve contente solo caratteri alfanumerici per creare cartelle univoche
     OP_USERNAME_TOO_SHORT, //userdeme inferiore caratteri minimi consentiti
@@ -27,4 +28,5 @@ public enum ServerResponse{
     OP_SECTION_ALREADY_IN_EDITING_MODE, //se la sezione richiesta da editare e' gia' editata da qualcuno
     OP_SECTION_NOT_IN_EDITING_MODE, //se la sezione di cui si richiede fine editing non era settata ad editabile
     OP_ONLINE_INVITE_ADVERTISEMENT, //flag per segnalare soppraggiungere di un invito ad un utente connesso
+    OP_SECTION_IS_COMING, //flag per segnalare il download di una sezione
 }

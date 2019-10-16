@@ -1,4 +1,10 @@
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.net.InetAddress;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.channels.SocketChannel;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -165,7 +171,7 @@ public class TuringTask {
         }
 
         //recupero cartella dedicata alla memorizzazione dei files dell'utente
-        String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory() + username + "/";
+        String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory();
 
         //recupero path della cartella/documento
         String userDocumentPath = userSaveDirectoryPath + document +  "/"; //documento e' una cartella
@@ -274,6 +280,59 @@ public class TuringTask {
     }
 
     /**
+     * Funzione che si occupa di inviare il contenuto di una sezione (acceduta e letta in mutua esclsione)
+     * ad un client, con il seguente formato di messaggio:
+     * 1. l'HEADER contenente:
+     * a) OP_SECTION_IS_COMING
+     * b) la dim. del BODY (contenuto del file)
+     * 2. il BODY (contenuto del file)
+     * @param document documento a cui appartiene la sezione
+     * @param i numero della sezione da inviare
+     * @return SUCCESS se l'invio della dimensione del file/sezione e il contenuto del file/sezione sono andati a
+     *                 buon fine
+     *         FAILURE altrimenti
+     */
+    private FunctionOutcome sendSection(String document, int i){
+
+        //recupero cartella dedicata alla memorizzazione dei files dell'utente
+        String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory();
+
+        //recupero path della cartella/documento
+        String userDocumentPath = userSaveDirectoryPath + document +  "/"; //documento e' una cartella
+
+        //ricavo nome del file del file/sezione
+        String userSectionFile = userDocumentPath + i + ".txt";
+
+        String content = "";
+
+        //apro un FileChannel per leggere il contenuto del file/sezione
+        RandomAccessFile randomAccessFile = null;
+        try {
+            randomAccessFile = new RandomAccessFile(userSectionFile, "rw");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+
+        FileChannel outChannel = randomAccessFile.getChannel(); //ricavo channel del file
+
+        //FileLock => mutua esclusione sul file con JavaNIO
+        try (outChannel; FileLock fileLock = outChannel.lock()) {
+
+            FileManagement fileManagement = new FileManagement();
+            content = fileManagement.readFile(userSectionFile);
+
+            //rilascio mutua esclusione sul file/sezione
+            fileLock.release();
+
+        } catch (OverlappingFileLockException | IOException ex) {
+            System.err.println("Exception occured while trying to get a lock on File... " + ex.getMessage());
+            System.exit(-1);
+        }
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_IS_COMING, content);
+    }
+
+    /**
      * Funzione che si occupa di soddisfare la richiesta di visualizzazione del contenuto del documento passato come
      * argomento. La visualizzazione da parte del client del documento richiesto e' consentita grazie:
      * 1. al download dei files che compongono il documento/cartella
@@ -282,14 +341,66 @@ public class TuringTask {
      * @param document documento di cui visualizzare il contenuto
      * @return OP_OK se la visualizzazione del documento ha avuto successo
      *         OP_USER_NOT_ONLINE se l'utente che richiede operazione non e' connesso
-     *         OP_USER_NOT_REGISTERED se l'utente che richiede operazione non e' registrato
      *         OP_OP_DOCUMENT_NOT_EXIST se il documento non esiste (non rientra nella lista dei documenti creati /
      *          condivisi con l'utente)
      *           @TODO nel client verificare prima se download di qualche sezione (CHE DEVO NOTIFICARE AL CLIENT) non e'
      *           gia avvenuto (evito richiesta)
      */
     public FunctionOutcome showDocumentTask(String document){
-        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+        //verifico se utente e' connesso
+        String username = this.serverDataStructures.checkIfSocketChannelIsOnline(client);
+
+        if(username == null)
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
+        //1. controllo che documento esista
+        //2. controllo che utente abbia permessi per visualizzarlo (sia suo creatore/collaboratore)
+        //3.invio contentuo del file all'utente
+
+        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
+        synchronized(this.serverDataStructures.getLockHash()){
+            //controllo se documento esiste
+            Document doc = this.serverDataStructures.getDocumentFromHash(document);
+
+            if(doc == null) //documento non esiste
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+
+            //documento esiste
+            //verifico se utente ha i permessi per visualizzarlo
+
+            if(!doc.isCreator(username)){ //utente non e' creatore
+                //verifico se utente e' collaboratore
+                if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
+                    return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
+                }
+            }
+
+            //utente e creatore/collaboratore del documento => lo puo' visualizzare
+            //recupero numero sezioni del documento
+            int numSections = doc.getNumberSections();
+
+            //invio numero delle sezioni al Client (cosi sa quanto deve attendere per leggere i vari files)
+            String body = String.valueOf(numSections);
+            FunctionOutcome check =  this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, body);
+
+            if(check == FunctionOutcome.FAILURE)
+                return FunctionOutcome.FAILURE; //invio numero sezioni fallita
+
+            //invio numero sezioni/files andato a buon fine
+            //itero sulle sezioni
+            for(int i = 1; i <= numSections; i++){
+
+                //provo ad inviare dimensione del file/sezione e contenuto del file/sezione al Client
+                check = sendSection(document, i);
+
+                if(check == FunctionOutcome.FAILURE){
+                    return FunctionOutcome.FAILURE; //invio dim.sezione / sezione fallito
+                }
+            }
+        }
+        return FunctionOutcome.SUCCESS; //segnalo al Worker che invio di tutte le sezioni ha avuto successo
     }
 
     /**
@@ -309,7 +420,54 @@ public class TuringTask {
      *          @TODO nel client verificare prima se download di tale sezione non e' gia avvenuto (evito richiesta)
      */
     public FunctionOutcome showSectionTask(String document, int numSection){
-        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+        //verifico se utente e' connesso
+        String username = this.serverDataStructures.checkIfSocketChannelIsOnline(client);
+
+        if(username == null)
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
+        //1. controllo che documento esista
+        //2. controllo che sezione richiesta esista
+        //3. controllo che utente abbia permessi per visualizzarla (sia  creatore/collaboratore del documento)
+        //3. invio contentuo del file all'utente
+
+        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
+        synchronized(this.serverDataStructures.getLockHash()){
+            //controllo se documento esiste
+            Document doc = this.serverDataStructures.getDocumentFromHash(document);
+
+            if(doc == null) //documento non esiste
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+
+            //documento esiste
+            //verifico se utente ha i permessi per visualizzarlo
+
+            if(!doc.isCreator(username)){ //utente non e' creatore
+                //verifico se utente e' collaboratore
+                if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
+                    return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
+                }
+            }
+
+            //utente e creatore/collaboratore del documento => lo puo' visualizzare
+            //recupero numero sezioni del documento, per verificare che la sezione esisti
+            int numSections = doc.getNumberSections();
+
+            if(numSection < 1 || numSection > numSections){ //sezione non fa parte del documento
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_NOT_EXIST, "");
+            }
+
+            //invio buon esito lettura richiesta al Client
+            FunctionOutcome check = this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+
+            if(check == FunctionOutcome.FAILURE)
+                return FunctionOutcome.FAILURE; //problemi con invio acknowledgement al Client
+
+            //provo ad inviare dimensione del file/sezione e contenuto del file/sezione al Client
+            return sendSection(document, numSection);
+        }
     }
 
     /**

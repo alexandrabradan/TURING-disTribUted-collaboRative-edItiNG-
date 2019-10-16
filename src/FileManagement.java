@@ -200,6 +200,22 @@ public class FileManagement {
     }
 
     /**
+     * Funzione che restituisce la dimensione del file passato come argomento (se esiste)
+     * @param filePath file di cui ricavare la dimensione
+     * @return >=0 ossia la dimensione del file
+     *         -1 se il file non esiste oppure ci sono stati problemi I/O
+     */
+    public long getFileSize(String filePath){
+        Path path = Paths.get(filePath);
+        try {
+            return Files.size(path);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    /**
      * Funzione che verifica l'esistenza del file nel path passato come paramentro
      * @param filePath  path del file di cui bisogna verificare esistenza
      * @return true se file esiste
@@ -243,11 +259,11 @@ public class FileManagement {
             }
         }
         else{
-            System.err.println("[ERR] >> Impossibile craere il file <<" + filePath + ">>, file gia' esistente");
+            //System.err.println("[ERR] >> Impossibile craere il file <<" + filePath + ">>, file gia' esistente");
             return FunctionOutcome.FAILURE; //file esiste gia'
         }
 
-        System.err.println("[ERR] >> Impossibile craere il file <<" + filePath + ">>");
+        //System.err.println("[ERR] >> Impossibile craere il file <<" + filePath + ">>");
         return FunctionOutcome.FAILURE; //se arrivo qui ci sono stati problemi
     }
 
@@ -284,36 +300,41 @@ public class FileManagement {
     /**
      * Funzione che legge il contenuto del  file contenuto nel path passato come argomento
      * @param filePath path del file da leggere
-     * @return SUCCESS se la lettura del file e' avvenuta con successo
-     *         FAILURE se non e' stato possibile leggere il file oppure il file non esiste
+     * @return !="" se la lettura del file e' avvenuta con successo
+     *         "" se non e' stato possibile leggere il file oppure il file non esiste
      */
-    public FunctionOutcome readFile(String filePath){
+    public String readFile(String filePath){
 
         //veridico esistenza file
         boolean exist = checkEsistenceFile(filePath);
 
         if(exist){
             Path path = Paths.get(filePath);
+
+            StringBuilder content = new StringBuilder();
+
             try {
                 List<String> lines = Files.readAllLines(path, StandardCharsets.UTF_8); //.get(0);
 
                 for (String line : lines) {
-                    System.err.println(line);
+                    content.append(line);
                 }
 
-                return FunctionOutcome.SUCCESS; //lettura avvenuta con successo
+                return new String(content); //lettura avvenuta con successo
+
             } catch (IOException e) {
                 System.err.println("Exception thrown  :" + e);
                 e.printStackTrace();
+                new String(content);
             }
         }
         else{
             System.err.println("[ERR] >> Impossibile legegre il file <<" + filePath + ">>, file non esistente");
-            return FunctionOutcome.FAILURE;
+            new String("");
         }
 
         System.err.println("[ERR] >> Impossibile leggere il file <<" + filePath + ">>");
-        return FunctionOutcome.FAILURE; //se arrivo qui ci sono stati problemi
+        return new String(""); //se arrivo qui ci sono stati problemi
     }
 
     /**
@@ -330,8 +351,7 @@ public class FileManagement {
 
         if(exist){
             Path path = Paths.get(filePath);
-            byte[] strToBytes = (contentToWrite + System.lineSeparator()).getBytes(); //aggiungo "\n"
-
+            byte[] strToBytes = (contentToWrite).getBytes();
             try{
                 Files.write(path, strToBytes);
 
