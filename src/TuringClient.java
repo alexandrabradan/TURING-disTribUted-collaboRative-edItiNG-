@@ -1,17 +1,35 @@
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 
 public class TuringClient {
     private static String defaultConfFile = "/src/data/turingClient.conf";
     private static ClientConfigurationManagement configurationsManagement = new ClientConfigurationManagement();
-    private static RMIRegistrationHandler rmiRegistrationHandler = new RMIRegistrationHandler();
     private static SocketChannel clientSocket = null;      //client-socket
     private static String serverHost;
     private static int serverPort;
     private static InetSocketAddress serverAddress;  //indirizzo e porta del Server a cui connettersi
-
+    /**
+     * Classe per gestire invio delle richieste e lettura delle resposte al/dal Server
+     */
     private static ClientMessageManagement clientMessageManagement;
+
+    /**
+     * thread che ascolta sopraggiungere inviti online
+     */
+    private static ClientInvitesListenerThread invitesListenerThread;
+
+    /**
+     * SocketChannel utilizzato per ascoltare inviti
+     */
+    private static SocketChannel invitesSocket;
+    /**
+     * chatListenerThread attivato quando un client edita un documento e fatto terminare quando il Client
+     * termina di editare il documento oppure termina per anomalia/volontariamente
+     */
+    private static ClientChatListener clientChatListenerThread = null;
 
     /**
      * Ciclo principale che si occupa di:
@@ -51,41 +69,100 @@ public class TuringClient {
             System.out.println("[Turing] >> Per maggiori dettagli sul formato delle configurazioni, guardare il file <./data/turingClient.conf>");
         }
 
-        //mostro a video le configurazioni con cui è stato eseguito il client Turing
-        configurationsManagement.showConf();
-
         //alloco le risorse estrappolate dal file di configurazione
         FunctionOutcome allocate = configurationsManagement.allocateConf();
 
         if(allocate == FunctionOutcome.FAILURE){
             System.err.println("[ERR] >> Impossibile allocare le risorse di configurazioni del Client");
+            //cancello cartella dedicata al Client in "/Turing_downloads/" e in "/Turing_edit_mode/"
             System.exit(-1);
         }
 
-        System.out.println("[Turing] >> Caricamento delle configurazioni avvenuto con successo");
-
         //configurazioni settate correttamente
         //creo client-socket
-        clientSocket = createClientSocket();
+        clientSocket = createSocketChannel();
 
         if(clientSocket == null){
             System.err.println("[ERR] >> Impossibile creare client-socket");
             System.exit(-1); //termino programma con errore
         }
 
-        System.out.println("[Turing] >> Client-socket creato con successo");
+        //System.out.println("[Turing] >> Client-socket creato con successo");
+        //System.out.println("[Turing] >> Fase di connessione al Server");
 
         //connetto Client al Server
-        FunctionOutcome connect = connectToServer();
+        FunctionOutcome connect = connectToServer(clientSocket, true);
 
         if(connect == FunctionOutcome.FAILURE){
             System.err.println("[ERR] >> Impossibile connettersi al Server");
-            closeClientSocket(); //chiudo client-socket e programma
+            closeClienttSocketSimple(); //chiudo client-socket e segnalo errore
         }
 
-        System.out.println("[Turing] >> Connessione al Server avvenuta con successo");
-        System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
-        System.out.println("[Turing] >> turing --help");
+       // System.out.println("[Turing] >> Connessione al Server avvenuta con successo");
+
+       // System.out.println("[Turing] >> Fase di creazione delle cartelle dedicate al Client");
+        String clientSocketName = getClientSocketName();
+
+        if(clientSocketName.isEmpty()){
+            System.err.println("[ERR] >> Impossibile repererire nome del clientSocket");
+            closeClienttSocketSimple(); //chiudo client-socket e segnalo errore
+        }
+
+        //creo cartella dedicata al Client in "/Turing_downloads/" e in "/Turing_edit_mode/"
+        configurationsManagement.setClientsDownloadsDocumentsDirectory(clientSocketName);
+        configurationsManagement.setClientsEditDocumentsDirectory(clientSocketName);
+
+        //alloco le cartelle dove salavre files e files da editare del Client
+        allocate = configurationsManagement.allocateClientConf();
+
+        if(allocate == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile allocare le risorse di configurazioni del Client");
+            closeClienttSocketSimple(); //chiudo client-socket e segnalo errore
+        }
+
+        //mostro a video le configurazioni con cui è stato eseguito il client Turing
+        configurationsManagement.showConf();
+        System.out.println(String.format("--- Client |%s| connesso al Server ---", clientSocketName));
+
+       // System.out.println("[Turing] >> Creazione delle cartelle dedicate al Client avvenuto con successo");
+       // System.out.println("[Turing] >> Fase di creazione del thread degli inviti");
+
+        //creo invitesSocket (SocketChannel utilizzato per ascoltare sopraggiungere inviti)
+        invitesSocket = createSocketChannel();
+        if(connect == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile create invitesSocket");
+            System.exit(-1);  //chiudo client-socket
+        }
+
+        //connetto invitesSocket al Server
+        connect =  connectToServer(invitesSocket, false);
+
+        if(connect == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile connette invitesSocket al Server");
+            System.exit(-1);  //chiudo client-socket
+        }
+
+        //creo invitesListerer
+        invitesListenerThread = new ClientInvitesListenerThread(clientSocket, invitesSocket, configurationsManagement,
+                                                                                            clientChatListenerThread);
+        //attivo invitesListerer
+        invitesListenerThread.start();
+
+        //System.out.println("[Turing] >> Thread degli inviti creato con successo");
+        //System.out.println("[Turing] >> Fase di creazione del ShutdownHook");
+
+        //In concomitanza dei segnali ( SIGINT) || (SIGQUIT) || (SIGTERM) si effettuare GRACEFUL SHUTDOWN del Server, ossia:
+        //1. si fa terminare thread chat
+        //2. si fa terminare thread inviti
+        //2. si cancellano cartelle dedicate al Client
+        //3. si chiude client-socket
+        //Per fare questo segnalo alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
+        //di terminare il programma
+        Runtime.getRuntime().addShutdownHook(new ClientShutdownHook(invitesListenerThread, clientMessageManagement,
+                configurationsManagement, clientSocket));
+
+        //System.out.println("[Turing] >> ShutdownHook creato con successo");
+        //System.out.println("[Turing] >> Thread degli inviti creato con successo");
 
         //connessione avvenuta con successo => posso iniziare a:
         //1. leggere comandi da tastiera
@@ -95,13 +172,13 @@ public class TuringClient {
     }
 
     /**
-     * Funzione che crea il client-socket
-     * @return SocketChannel client-socket che client utilizzera' per connettersi al Server
-     *         null se e' subentrato qualche errore nella creazione del client-socket
+     * Funzione che crea un SocketChannel
+     * @return SocketChannel creato
+     *         null se e' subentrato qualche errore nella creazione
      */
-    private static SocketChannel createClientSocket(){
+    private static SocketChannel createSocketChannel(){
 
-        System.out.println("[Turing] >> Fase di creazione del client-socket");
+        //System.out.println("[Turing] >> Fase di creazione del client-socket");
 
         SocketChannel client;
         try {
@@ -116,13 +193,17 @@ public class TuringClient {
     }
 
     /**
-     * Funzione che connetto Client al Server
-     * @return SUCCESS connessione al Server avvenuta con successo
+     * Funzione che connetto un SocketChannel al Server
+     * @param socket SocketChannel da connettere al Server
+     * @param isClientSocket flag per differenziare clientSocket dall'inviteSocktet, perche' hanno comportamento diverso:
+     *                       inviteSocket -> si connette al Server
+     *                       clientSocket -> si connette al Server e fornisce al Server suo nome (indirizzo IP e porta)
+     *                       per consentire successivamente all'inviteSocket di far sapere al Server che lui e' il
+     *                       canele di ascolto inviti proprio di questo
+     * @return SUCCESS connessione al Server avvenuta con successo clientSocket
      *         FAILURE altrimenti
      */
-    private static FunctionOutcome connectToServer() {
-
-        System.out.println("[Turing] >> Fase di connessione al Server");
+    private static FunctionOutcome connectToServer(SocketChannel socket, boolean isClientSocket) {
 
         //dal file di configurazione ricavo il serverHost e la serverPort
         serverHost = configurationsManagement.getServerHost();
@@ -135,20 +216,49 @@ public class TuringClient {
             //dal file di configurazione ho ricavato il TIMEOUT della connessione (tempo massimo attesa Client prima
             //di affermare di non potersi connettere al Server)
             int connectionTimeout = configurationsManagement.getConnectionTimeout();
-            clientSocket.socket().connect(serverAddress, connectionTimeout);
+            socket.socket().connect(serverAddress, connectionTimeout);
 
-            while (!clientSocket.finishConnect()) {
-                System.out.println("[CLIENT] >> Mi sto connettendo ...");
+            while (!socket.finishConnect()) {
+                //System.out.println("[CLIENT] >> Mi sto connettendo ...");
             }
 
-            //connessione al Server avvenuta con successo => creo istanze per scrivere richieste e leggere risposte
-            clientMessageManagement = new ClientMessageManagement(clientSocket, configurationsManagement);
+            //se ho connesso al Server il clientSocket gli devo inviare mio nome
+            if(isClientSocket){
+
+                //connessione al Server avvenuta con successo => creo istanze per scrivere richieste e leggere risposte
+                clientMessageManagement = new ClientMessageManagement(clientSocket, configurationsManagement, clientChatListenerThread);
+
+                FunctionOutcome check = clientMessageManagement.writeRequest(CommandType.I_AM_CLIENT_SOCKET, "", "");
+
+                if(check == FunctionOutcome.FAILURE) //invio msg al Server fallito
+                    System.exit(-1);  //chiudo client-socket
+
+                return clientMessageManagement.readResponse("");
+            }
 
             return FunctionOutcome.SUCCESS;
 
         } catch (IOException e) {
             // e.printStackTrace();
             return FunctionOutcome.FAILURE; //impossibile stabilire connessione / timeout scaduto
+        }
+    }
+
+    /**
+     * Funzione che restituisce il nome del SochetChannel connesso al Server => nome server per creare
+     * cartella univoca Turing_downloads e Turing_edit_mode per il Client
+     * @return nome del SocketChannel connesso al Server
+     */
+    private static String getClientSocketName(){
+        String hostAndPort;
+        try {
+            hostAndPort = clientSocket.getLocalAddress().toString();
+            String[] port = hostAndPort.split(":");
+
+            return port[1];
+        } catch (IOException e) {
+            e.printStackTrace();
+           return "";
         }
     }
 
@@ -168,14 +278,19 @@ public class TuringClient {
          */
         String currentUser = "";
 
+        /*
+          variabile nella quale memorizza il documento che l'utente sta editando
+         */
+        String documentToEdit = "";
+
         while (true) {
 
             System.out.println();
             System.out.println("[Turing] >> Digita nuovo comando:");
 
             //leggo commando da tastiera
-            ClientCommandLineManagement commandLineManagement = new ClientCommandLineManagement();
-            FunctionOutcome check = commandLineManagement.readAndParseCommand();
+            ClientCommandLineManagement commandLineManagement = new ClientCommandLineManagement(configurationsManagement);
+            FunctionOutcome check = commandLineManagement.readAndParseCommand(documentToEdit);
 
             if(check == FunctionOutcome.SUCCESS){ //commando sintatticamente corretto
                 //discrimino cosa fare in base al commando digitato
@@ -186,12 +301,27 @@ public class TuringClient {
                         continue; //digito comando successivo
                     }
                     case EXIT:{
-                        closeClientSocket(); //chiudo client-socket e programma
-                        break;
+                        System.exit(0); //chiudo client-socket e programma
+                        continue;
                     }
                     case REGISTER:{
                         //registrazione al servizio tramite stub RMI avvenuta => commando seguente
                         continue;
+                    }
+                    case RECEIVE:{
+                        if(currentUser.isEmpty()){
+                            System.err.println("[ERR] >> Utente NON connesso.");
+                            continue; //leggo comando successivo
+                        }
+                        else if(documentToEdit.isEmpty()){
+                            System.err.println("[Turing] >> Non puoi visualizzare messaggi se non stai editando nessun documento.");
+                            continue; //leggo comando successivo
+                        }
+                        else{
+                            //stampo messaggi ricevuti sulla chat
+                            clientMessageManagement.visualizeHistory();
+                            continue;
+                        }
                     }
                     case LOGIN:
                     case LOGOUT:
@@ -202,11 +332,11 @@ public class TuringClient {
                     case LIST:
                     case EDIT:
                     case END_EDIT:
-                    case SEND:        //multicast
-                    case RECEIVE:{   //multicast
+                    case SEND:{
 
                         //in caso di LOGIN devo memorizzare username che si e' connesso per personalizzare
-                        //sue stampe
+                        //sue stampe ed attivare invitesListerer (thraed che ascolto sopraggiungere
+                        // degli inviti online)
                         if(currentCommand == CommandType.LOGIN){
                             //memorizzousername connesso, per personalizzare le stampe
                             currentUser = commandLineManagement.getCurrentArg1();
@@ -216,26 +346,75 @@ public class TuringClient {
                         String currentArg1 = commandLineManagement.getCurrentArg1();
                         String currentArg2 = commandLineManagement.getCurrentArg2();
 
-                        //invio richiesta al Server
-                        check = clientMessageManagement.writeRequest(currentCommand, currentArg1, currentArg2);
+                        if(currentCommand == CommandType.SEND){
+                            if(currentUser.isEmpty()){
+                                System.err.println("[ERR] >> Utente NON connesso.");
+                                continue; //leggo comando successivo
+                            }
+                            else if(documentToEdit.isEmpty()){
+                                System.err.println("[Turing] >> Non puoi mandare un messaggio se non stai editando nessun documento.");
+                                continue; //leggo comando successivo
+                            }
+                            else {
+                                //invio documento sulla cui chat voglio inviare msg
+                                check = clientMessageManagement.writeRequest(currentCommand, documentToEdit, "");
+
+                                if(check == FunctionOutcome.FAILURE){
+                                    System.err.println("[Turing] >> Impossibile sottomettere la richiesta al Server");
+                                    System.exit(-1);  //chiudo client-socket
+                                }
+
+                                //invio documento andato a buon fine
+                                //invio messaggio che voglio inviare sulla chat
+                                //ricavo tempo
+                                Calendar cal = Calendar.getInstance();
+                                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+                                String time = sdf.format(cal.getTime());
+
+                                //aggiunto ora e mittente del msg, al msg
+                                String msg = "    |" + time + "| " + currentUser + ": " + currentArg1;
+
+                                //invio richiesta al Server
+                                check = clientMessageManagement.writeRequest(currentCommand, msg, "");
+                            }
+                        }
+                        else{
+                            //invio richiesta al Server
+                            check = clientMessageManagement.writeRequest(currentCommand, currentArg1, currentArg2);
+                        }
 
                         if(check == FunctionOutcome.FAILURE){
-                            System.err.println("[Turing >> Impossibile sottomettere la richiesta al Server]");
-                            closeClientSocket();
+                            System.err.println("[Turing] >> Impossibile sottomettere la richiesta al Server");
+                            System.exit(-1);  //chiudo client-socket
                         }
 
                         //attendo risposta dal Server
                         check = clientMessageManagement.readResponse(currentUser);
 
                         if(check == FunctionOutcome.FAILURE){
-                            System.err.println("[Turing >> Impossibile reperire la risposta del Server]");
-                            closeClientSocket();
+                            //errore da parte dell'utente => deve digitare di nuovo commando
+                            //nel caso Server si sia disconesso, Client lo capisce quando riprova a scrivere nuova
+                            //richiesta ed esce
+                            continue;
+                        }
+
+                        if(currentCommand == CommandType.EDIT){
+                            //setto documento che sto editando
+                            documentToEdit = currentArg1;
+                        }
+
+                        //in caso di END-EDIT devo proveddere ad inviare versione aggiornata al Server
+                        if(currentCommand == CommandType.END_EDIT){
+                            System.out.println(String.format("[%s] >> Fine modifica della sezione |%s| del" +
+                                    " documento |%s|", currentUser, currentArg2, currentArg1));
+
+                            documentToEdit = ""; //resetto documento che sto editando
                         }
 
                         //in caso di LOGOUT devo resettare username connesso
                         if(currentCommand == CommandType.LOGOUT){
-                            //utente connesso si e' appena disconesso
-                            currentUser = "";
+                            currentUser = "";  //resetto utente connesso
+                            documentToEdit = ""; //resetto documento che sto editando
                         }
                     }
                 }
@@ -244,25 +423,17 @@ public class TuringClient {
     }
 
     /**
-     * Funzione che fa terminare il Client, chiudendo il suo client-socket quando sopraggiunge il comando:
-     * <<turing exit>>
+     * Funzione che si occcupa di chiuede il client-socket se subentrano problemi
+     * in fase di caricamento del Client
      */
-    private static void closeClientSocket(){
-        //controllo che il SocketChannel sia stato inizializzato, altrimenti esco semplicemente
-        if(clientSocket != null){
-            try {
+    private static void closeClienttSocketSimple(){
+        try {
+            clientSocket.close();
 
-                clientSocket.close();
-                System.out.println("[Turing] >> Client-socket chiuso");
-
-                System.exit(0);
-
-            } catch (IOException e) {
-                e.printStackTrace();
-                System.err.println("[ERR] >> Impossibile chiudere client-socket");
-                System.exit(-1);
-            }
+            System.exit(-1);
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(-1);
         }
-        else System.exit(0);
     }
 }

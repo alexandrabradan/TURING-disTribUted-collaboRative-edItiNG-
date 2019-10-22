@@ -20,9 +20,10 @@ public class User {
      */
     private Set<String> set_pendingDocs;
     /**
-     *  insieme dei documenti a cui l'utente è stato invitato a modificare, mentre era online
+     * Ogetto per utilizzato per reperire la mutua esclusione sull'invitesSocketChannel dedicato
+     * all'ascolto degli inviti del Client
      */
-    private Set<String> set_liveDocs;
+    private Object lockInvitesSocket;
 
     /**
      * Costruttore della classe User
@@ -32,11 +33,19 @@ public class User {
     public User(String username, String password) {
         this.set_docs = new LinkedHashSet<>();
         this.set_pendingDocs = new LinkedHashSet<>();
-        this.set_liveDocs = new LinkedHashSet<>();
 
         this.username = username;
         this.password = password;
+
+        this.lockInvitesSocket = new Object();
     }
+
+    /**
+     * Funzione per reperire l'oggetto che da la mutua esclusione sulla scrittura
+     * dell'invitesSocket del Client
+     * @return this.lockInvitesSocket
+     */
+    public synchronized Object getLockInvitesSocket(){return this.lockInvitesSocket;}
 
     /**
      *Funzione che restituisce il nome dell'utente
@@ -83,14 +92,6 @@ public class User {
         return this.set_pendingDocs;
     }
 
-    /**
-     * Funzione che restituisce l'insieme dei documenti a cui l'utente è stato invitato a collaborare mentre era online
-     * @return this.set_liveDocs
-     */
-    public synchronized Set<String> getLiveDocs() {
-        return this.set_liveDocs;
-    }
-
     /** Funzione che aggiunge un documento all'insieme dei documenti che l'utente può editare
      * @param document documento da aggiungere
      */
@@ -106,40 +107,14 @@ public class User {
     public synchronized void addSetPendingDocs(String document) {
         this.set_pendingDocs.add(document);
     }
-    /**
-     * Funzione che aggiunge un documento all'insieme dei documenti che l'utente può modificare (l'invito soppraggiunge
-     * mentre utente e' online)
-     * @param document documento da aggiungere
-     */
-    public synchronized void addSetLiveDocs(String document) {
-        this.set_liveDocs.add(document);
-    }
 
     /**
-     * Funzione che controlla se il documento è modificabile dall'utente (appartiene all'insieme dei documenti modificabili
-     * dall'utente perche' ne' collaboratore/craetore
-     * @param document documento da controllare
-     * @return true se il doucmento e' modificabile dall'utente
-     *  	   false altrimenti
+     * Funzione che si occupa di eliminare un invito pendente (perche' inviato all'utente) dall'insieme
+     * degli inviti pendenti
+     * @param invite stringa che contiene invito pendente da cui estrappolare nome del documento
      */
-    public synchronized boolean documentIsInSetDocs(String document) {
-        return this.set_docs.contains(document);
-    }
-
-    /**
-     * Funzione che si occupa di svuotare si occupa di svuotare l'insieme dei documenti per cui l'utente ha ricevuto un
-     * invito di collaborazione mentre era offline
-     */
-    public synchronized void clearPendingDocs() {
-        this.set_pendingDocs.clear();
-    }
-
-    /**
-     * Funzione che si occupa di svuotare si occupa di svuotare l'insieme dei documenti per cui l'utente ha ricevuto un
-     * invito di collaborazione mentre era online
-     */
-    public synchronized void clearLiveDocs() {
-        this.set_liveDocs.clear();
+    public synchronized void removePendingInvite(String invite){
+        this.set_pendingDocs.remove(invite);
     }
 
     /**
@@ -157,11 +132,6 @@ public class User {
         tmpString.append("| pending_docs = |");
 
         for(String doc: this.set_pendingDocs){
-            tmpString.append(" ").append(doc);
-        }
-        tmpString.append("| live_docs = |");
-
-        for(String doc: this.set_liveDocs){
             tmpString.append(" ").append(doc);
         }
         tmpString.append("|");

@@ -38,10 +38,7 @@ public class TuringListener implements Runnable {
      * Riferimento alla coda di lavoro
      */
     private LinkedBlockingQueue<Runnable> workingQueue;
-    /**
-     * Classe necessaria per recuperare ora attuale
-     */
-    private SimpleDateFormat dateFormat;
+
 
     /**
      * Costruttore della classe TuringListener
@@ -49,12 +46,11 @@ public class TuringListener implements Runnable {
      *                                 di configurazione del Server (parsing fatto dal thread TuringServer che
      *                                 ha avviato questo Listener-thread)
      */
-    public TuringListener(ServerConfigurationsManagement configurationsManagement){
+    public TuringListener(ServerConfigurationsManagement configurationsManagement, Thread turingServerThread){
         this.configurationsManagement = configurationsManagement;
         this.TIMEOUT = this.configurationsManagement.getConnectionTimeout();
         this.address = new InetSocketAddress(this.configurationsManagement.getServerHost(),
                                                                         this.configurationsManagement.getServerPort());
-        this.dateFormat = new SimpleDateFormat("hh:mm:ss");
 
         //*************************************ALLOCAZIONE STRUTTURE DATI *********************************************//
         System.out.println("[Turing] >> Fase di allocazione delle strutture dati");
@@ -78,13 +74,27 @@ public class TuringListener implements Runnable {
         int numWorkersInThreadPool = this.configurationsManagement.getNumWorkersInThreadPool();
 
         //alloco coda di lavoro
-        this.workingQueue = new LinkedBlockingQueue<Runnable>();
+        this.workingQueue = new LinkedBlockingQueue<>();
 
         //creo ThreadPool personalizzato (faccio questo per assegnare nomi desiderati agli Workers)
         this.threadPool = new MyExecutor(numWorkersInThreadPool, numWorkersInThreadPool, 0L,
                 TimeUnit.MILLISECONDS, this.workingQueue);
 
         System.out.println("[Turing] >> ThreadPool creato con successo");
+
+        //*************************************CREAZIONE SHUTDOWNHOOK*************************************************//
+
+        System.out.println("[Turing] >> Fase di creazione del ShutdownHook");
+
+        //In concomitanza dei segnali ( SIGINT) || (SIGQUIT) || (SIGTERM) si effettuare GRACEFUL SHUTDOWN del Server, ossia:
+        //1. si soddisfanno tutte le richieste pendenti dei clients (rifiutando le nuove)
+        //2. si liberano le risorse allocate
+        //3. si fanno terminare tutti gli Workers e il Listener Thread
+        //Per fare questo segnalo alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
+        //di terminare il programma
+        Runtime.getRuntime().addShutdownHook(new ServerShutdownHook(Thread.currentThread(), this.threadPool, turingServerThread));
+
+        System.out.println("[Turing] >> ShutdownHook creato con successo");
     }
 
     /**
@@ -98,7 +108,7 @@ public class TuringListener implements Runnable {
         TuringRegistrationRMIInterface turingRegistrationRMI = new TuringRegistrationRMI(this.configurationsManagement,
                 this.serverDataStructures);
         //creo stub, che Client chiamera' per utilizzare oggetto remoto del Server
-        TuringRegistrationRMIInterface stub = null;
+        TuringRegistrationRMIInterface stub;
         try {
             //remoteObj = oggetto remoto del Server
             //port = porta utilizzata per esportare l'oggetto remoto sul Registro(=0 qualsiasi)
@@ -133,8 +143,6 @@ public class TuringListener implements Runnable {
         Vector<SocketChannel> socketChannelsList = new Vector<>();
         selectorKeysToReinsert.drainTo(socketChannelsList);
 
-        //@TODO verificare se devo usare "this.serverDataStructures.removeSelectorKeysToReinsert" (lo dovrebbe fare drainTo)
-
         for(SocketChannel socketChannel: socketChannelsList){
             try {
                 socketChannel.register(selector, SelectionKey.OP_READ); //registro nuovamente SocketChannel lettura richieste
@@ -147,26 +155,13 @@ public class TuringListener implements Runnable {
 
     public void run() {
 
-        //*************************************CREAZIONE SHUTDOWNHOOK*************************************************//
-
-        System.out.println("[Turing] >> Fase di creazione del ShutdownHook");
-
-        //In concomitanza dei segnali ( SIGINT) || (SIGQUIT) || (SIGTERM) si effettuare GRACEFUL SHUTDOWN del Server, ossia:
-        //1. si soddisfanno tutte le richieste pendenti dei clients (rifiutando le nuove)
-        //2. si liberano le risorse allocate
-        //3. si fanno terminare tutti gli Workers e il Listener Thread
-        //Per fare questo segnalo alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
-        //di terminare il programma
-        Runtime.getRuntime().addShutdownHook(new ShutdownHook(Thread.currentThread(), this.threadPool));
-
-
         //*********************************APERTURA SERVERSOCKET E SELECTOR*******************************************//
 
         System.out.println("[Turing] >> Fase di apertura del ServerSocket");
 
         //provo ad aprire il ServerSocket
-        //TRY-WITH-RESOURCES => e' try che si occupa di chiudere ServerSocket
-        try (ServerSocketChannel server = ServerSocketChannel.open()) {
+        //TRY-WITH-RESOURCES => e' try che si occupa di chiudere ServerSocket e selettore
+        try (ServerSocketChannel server = ServerSocketChannel.open(); Selector selector = Selector.open()) {
 
             //setto ServerSocket in modalita' NON-BLOCKING, per poter utilizzare selettore
             server.configureBlocking(false);
@@ -176,9 +171,6 @@ public class TuringListener implements Runnable {
 
             System.out.println("[Turing] >> ServerSokcet aperto con successo");
             System.out.println("[Turing] >> Fase di apertura del selettore");
-
-            //apro seletttore
-            Selector selector = Selector.open();
 
             System.out.println("[Turing] >> Selettore aperto con successo");
             System.out.println("[Turing] >> Fase di registrazione del ServerSocket al selettore");
@@ -193,8 +185,7 @@ public class TuringListener implements Runnable {
             System.out.println();
             System.out.println("[Turing] >> Inizio ciclo di ascolto");
 
-            //while (!Thread.interrupted()) {
-            while (true) {
+            while (!Thread.interrupted()) {
 
                 //riaggiungo al selettore i SocketChannels che sono stati tolti per essere aggiunti alla coda di lavoro
                 // e consentire agli workers di soddisfare la loro richiesta e l'invio dell'esito dell'operazione.
@@ -234,9 +225,11 @@ public class TuringListener implements Runnable {
                         SocketChannel client = s.accept();
 
                         //recupero ora atuale
-                        Calendar calendar = Calendar.getInstance();
+                        Calendar cal = Calendar.getInstance();
+                        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+                        String time = sdf.format(cal.getTime());
                         System.out.println();
-                        System.out.println("[Turing] >> Accettata al tempo: |" + this.dateFormat.format(calendar.getTime())
+                        System.out.println("[Turing] >> Accettata al tempo: |" + time
                                                         + "| connessione con: " + client.getRemoteAddress().toString());
                         System.out.println();
 
@@ -256,9 +249,11 @@ public class TuringListener implements Runnable {
                         key.cancel();
 
                         //recupero ora atuale
-                        Calendar calendar = Calendar.getInstance();
+                        Calendar cal = Calendar.getInstance();
+                        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+                        String time = sdf.format(cal.getTime());
                         System.out.println();
-                        System.out.println("[Turing] >> Ricevuta al tempo: |" + this.dateFormat.format(calendar.getTime())
+                        System.out.println("[Turing] >> Ricevuta al tempo: |" + time
                                 + "| richiesta da: " + client.getRemoteAddress().toString());
 
                         //sottometto al ThreadPool il task che uno dei threads dovra' soddisfare, ossia:
@@ -281,6 +276,5 @@ public class TuringListener implements Runnable {
             System.err.println("[ERR] >> Problemi I/O con ServerSocket");
             Thread.currentThread().interrupt(); //segnalo al padre che Listener ha terminato sua esecuzione
         }
-
     }
 }

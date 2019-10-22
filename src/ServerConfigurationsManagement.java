@@ -17,7 +17,6 @@ public class ServerConfigurationsManagement {
     private int maxNumCharactersArg; //numero massimo di caratteri che username/password/nome_documento possono avere
     private int numWorkersInThreadPool; //numero di threads nel ThreadPool
     private String serverSaveDocumentsDirectory; //path della directory dove Server salva documenti dei Clients
-    private String serverEditDocumentsDirectory; //path della directory dove Server salva documenti da editare dei Clients
 
     private FileManagement fileManagement = new FileManagement();
     private String currentPath = fileManagement.getCurrentPath();
@@ -36,7 +35,6 @@ public class ServerConfigurationsManagement {
         this.maxNumCharactersArg = -1;
         this.numWorkersInThreadPool = -1;
         this.serverSaveDocumentsDirectory = "";
-        this.serverEditDocumentsDirectory = "";
     }
 
     /**
@@ -118,14 +116,6 @@ public class ServerConfigurationsManagement {
     }
 
     /**
-     * Funzione che restituisce path della directory dove Server salva documenti da editare dei Clients
-     * @return path della directory dove Server salva documenti da editare dei Clients
-     */
-    public String getServerEditDocumentsDirectory(){
-        return this.serverEditDocumentsDirectory;
-    }
-
-    /**
      * Funzione che fa il parsing del file di configurazione passato come argomento
      * @param confFile path del file di configurazione da parsare
      * @return SUCCESS se il parsing e' andato a buon fine e tutte le variabili di configurazione sono lecite
@@ -194,9 +184,7 @@ public class ServerConfigurationsManagement {
                            value = currentPath + "/src" + value;
                            this.serverSaveDocumentsDirectory = value;
                            break;
-                       case "serverEditDocumentsDirectory":
-                           value = currentPath + "/src" + value;
-                           this.serverEditDocumentsDirectory = value;
+                       default:
                            break;
                    }
                }
@@ -262,10 +250,6 @@ public class ServerConfigurationsManagement {
             System.err.println("[ERR] >> serverSaveDocumentsDirectory non inizializzao ");
             return FunctionOutcome.FAILURE;
         }
-        else if(this.serverEditDocumentsDirectory.isEmpty()){
-            System.err.println("[ERR] >> serverEditDocumentsDirectory non inizializzao ");
-            return FunctionOutcome.FAILURE;
-        }
 
         //variabili di configurazione inizializzate e lecite
         return FunctionOutcome.SUCCESS;
@@ -275,29 +259,21 @@ public class ServerConfigurationsManagement {
      * Funzione che si occupa di allocare le risorse a seguito del parsing del file di configurazione.
      * In particolare:
      * 1. verifica se esistenza della cartella Turing_database, creandola altrimenti
-     * 2. verifica se esistenza della cartella Turing_edit, creandola altrimenti
-     * 3. verifica se esistenza della cartella Turing_downloads, creandola altrimenti
-     * 4. se le cartelle soprastanti esistono gia', le svuota
+     * 2. se le cartella soprastante esisteva gia', la svuota
      * N.B. NO PERSISTENZA DATI TRA UNA CONNESSIONE ED UN'ALTRA => PROTOCOLLO STATELESS
-     * @return SUCCESS se le 3 cartelle sono state svuotate, oppure se non esistevano sono state create
-     *         FAILURE se la creazione di una delle 3 cartelle oppure lo svuotamento di una di esse non ha avuto successo
+     * @return SUCCESS se cartella sono state svuotate, oppure se non esistevano sono state create
+     *         FAILURE se la creazione di una cartella oppure lo svuotamento di una di esse non ha avuto successo
      */
     public FunctionOutcome allocateConf(){
         boolean exist = this.fileManagement.checkEsistenceDirectory(this.serverSaveDocumentsDirectory);
-        boolean exist2 = this.fileManagement.checkEsistenceDirectory(this.serverEditDocumentsDirectory);
 
         if(exist){
             this.fileManagement.deleteDirectory(this.serverSaveDocumentsDirectory);
         }
         FunctionOutcome check1 = this.fileManagement.createDirectory(this.serverSaveDocumentsDirectory);
 
-        if(exist2){
-           this.fileManagement.deleteDirectory(this.serverEditDocumentsDirectory);;
-        }
-        FunctionOutcome check2 = this.fileManagement.createDirectory(this.serverEditDocumentsDirectory);
-
-        if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
-            System.err.println("[ERR] >> Impossibile creare una delle 2 cartelle di configurazione");
+        if(check1 == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile creare cartella di configurazione");
             return FunctionOutcome.FAILURE;
         }
 
@@ -320,7 +296,6 @@ public class ServerConfigurationsManagement {
         System.out.println("- Lunghezza massima dei campi da poter inserire = " + this.maxNumCharactersArg);
         System.out.println("- Dimensione del ThreadPool = " + this.numWorkersInThreadPool);
         System.out.println("- Directory dove andare a salvare i file = " + this.serverSaveDocumentsDirectory);
-        System.out.println("- Directory dove andare a salvare i file da editare = " + this.serverEditDocumentsDirectory);
         System.out.println();
     }
 }

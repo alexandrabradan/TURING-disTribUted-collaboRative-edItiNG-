@@ -61,6 +61,14 @@ public class ServerMessageManagement {
     }
 
     /**
+     * Funzione che restituisci il contenuto del BODY sottoforma di stringa
+     * @return contenuto del ByteBuffer BODY come stringa
+     */
+    public String getBodyMessage(){
+        return new String(this.body.array(), StandardCharsets.UTF_8);
+    }
+
+    /**
      * Funzione che restituisce il tipo di comando / richiesta letto dal SocketChannel del Client
      * @return this.currentCommand
      */
@@ -110,7 +118,6 @@ public class ServerMessageManagement {
             this.currentCommand = CommandType.values()[this.header.getInt()]; //converto valore numerico nel rispettivo ENUM
             int requestBodyLength = this.header.getInt(); //reperisco dimensione BODY
 
-
             //leggo eventuale BODY della richiesta
             if(requestBodyLength > 0){
 
@@ -136,18 +143,18 @@ public class ServerMessageManagement {
                     case SHARE:
                     case SHOW_SECTION:
                     case EDIT:
-                    case END_EDIT:{
+                    case END_EDIT:
+                    case SEND:
+                    case RECEIVE:{
                         //divido contentuno letto in prossimita' dello spazio vuoto (demarcatore tra argomenti)
                         String[] args = bodyContent.split("\\s+");
 
                         this.currentArg1 = args[0];
-                        this.currentArg2 = args[1];
+                        if(args.length > 1)
+                            this.currentArg2 = args[1];
                         break;
                     }
-                    case SEND:{
-                        //@TODO GESTIONE CASO A PARTE
-                        break;
-                    }
+                    case I_AM_INVITE_SOCKET:
                     case SHOW_DOCUMENT:{
                         //contentuo BODY e' esso stesso l'unico argomento
                         this.currentArg1 = bodyContent;
@@ -213,6 +220,7 @@ public class ServerMessageManagement {
             try {
                 System.out.println(String.format("[%s] >> Invio risposta |%s| al socket |%s| avvenuta con successo",
                         Thread.currentThread().getName(), serverResponse, this.clientSocket.getRemoteAddress().toString()));
+
             } catch (IOException e) {
                 e.printStackTrace();
                 System.exit(-1);

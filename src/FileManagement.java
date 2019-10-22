@@ -1,3 +1,4 @@
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -68,8 +69,9 @@ public class FileManagement {
             }
         }
         else{
-            System.err.println("[ERR] >> Impossibile creare la cartella <<" + directoryPath + ">>, cartella gia' esistente oppure path illecito");
-            return FunctionOutcome.FAILURE; //cartella esiste gia'
+            //System.err.println("[ERR] >> Impossibile creare la cartella <<" + directoryPath + ">>, cartella gia' esistente oppure path illecito");
+            //return FunctionOutcome.FAILURE; //cartella esiste gia'
+            return FunctionOutcome.SUCCESS; //nel caso creazione cartelle Clients non devo segnalare errore
         }
 
         System.err.println("[ERR] >> Impossibile creare la cartella <<" + directoryPath + ">>");
@@ -107,7 +109,7 @@ public class FileManagement {
             }
         }
         else{
-            System.err.println("[ERR] >> Impossibile eliminare la cartella <<" + directoryPath + ">>, cartella NON esistente");
+           // System.err.println("[ERR] >> Impossibile eliminare la cartella <<" + directoryPath + ">>, cartella NON esistente");
             return FunctionOutcome.FAILURE; //cartella non esisteva => gia' eliminata
         }
 
@@ -263,7 +265,7 @@ public class FileManagement {
             return FunctionOutcome.FAILURE; //file esiste gia'
         }
 
-        //System.err.println("[ERR] >> Impossibile craere il file <<" + filePath + ">>");
+        System.err.println("[ERR] >> Impossibile craere il file <<" + filePath + ">>");
         return FunctionOutcome.FAILURE; //se arrivo qui ci sono stati problemi
     }
 
@@ -353,7 +355,7 @@ public class FileManagement {
             Path path = Paths.get(filePath);
             byte[] strToBytes = (contentToWrite).getBytes();
             try{
-                Files.write(path, strToBytes);
+                Files.write(path, strToBytes, StandardOpenOption.TRUNCATE_EXISTING);
 
                 return FunctionOutcome.SUCCESS; //scrittura avvenuta con successo
 
@@ -369,6 +371,22 @@ public class FileManagement {
 
         System.err.println("[ERR] >> Impossibile scrivere il file <<" + filePath + ">>");
         return FunctionOutcome.FAILURE; //se arrivo qui ci sono stati problemi
+    }
+
+    /**
+     * Funzione che apre il file passato come argomento
+     * @param filePath file da aprire
+     */
+    public void openFile(String filePath){
+        if (Desktop.isDesktopSupported()) {
+            try {
+                File myFile = new File(filePath);
+                Desktop.getDesktop().open(myFile);
+            } catch (IOException ex) {
+                // no application registered for PDFs
+                System.exit(-1);
+            }
+        }
     }
 
     /**

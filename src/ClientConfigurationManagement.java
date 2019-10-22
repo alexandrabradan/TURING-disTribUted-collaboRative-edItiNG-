@@ -9,8 +9,10 @@ public class ClientConfigurationManagement {
     private String serverHost; //DNS name server
     private int serverPort; //porta su cui Server e' in ascolto
     private int RMIPort; //porta utilizzata per gli inviti
+    private int multicastPort; //porta utilizzata per i gruppi di chat
     private int connectionTimeout; //tempo attesa connessione Server / "receive" UDP chat multicast
     private String clientsDownloadsDocumentsDirectory; //cartella nella quale Clients salvano loro files
+    private String clientsEditDocumentsDirectory; //cartella dove Clients salvano documenti da editare
 
     private FileManagement fileManagement = new FileManagement();
     private String currentPath = fileManagement.getCurrentPath();
@@ -19,8 +21,10 @@ public class ClientConfigurationManagement {
         this.serverHost = "";
         this.serverPort = -1;
         this.RMIPort = -1;
+        this.multicastPort = -1;
         this.connectionTimeout = -1;
         this.clientsDownloadsDocumentsDirectory = "";
+        this.clientsEditDocumentsDirectory = "";
     }
 
     /**
@@ -48,6 +52,14 @@ public class ClientConfigurationManagement {
     }
 
     /**
+     * Funzione che restituisce la porta utilizzata per i gruppi di chat
+     * @return porta utilizzata per i gruppi di chat
+     */
+    public int getMulticastPort(){
+        return this.multicastPort;
+    }
+
+    /**
      * Funzione che restituisce tempo attesa Client prima di affermare di non potersi connettere al Server
      * @return tempo attesa Client prima di affermare di non potersi connettere al Server
      */
@@ -62,6 +74,32 @@ public class ClientConfigurationManagement {
     public String getClientsDownloadsDocumentsDirectory(){
         return this.clientsDownloadsDocumentsDirectory;
     }
+
+    /**
+     * Funzione che restituisce path della directory dove Clients salvano0 documenti da editare
+     * @return path della directory dove Server salva documenti da editare dei Clients
+     */
+    public String getClientsEditDocumentsDirectory(){
+        return this.clientsEditDocumentsDirectory;
+    }
+
+    /**
+     * Funzione che setta path della directory dove Client salva documenti scaricati
+     * @param clientSocketName nome del Socket connesso al Server
+     */
+    public void setClientsDownloadsDocumentsDirectory(String clientSocketName){
+        this.clientsDownloadsDocumentsDirectory =  this.clientsDownloadsDocumentsDirectory + clientSocketName + "/";
+    }
+
+    /**
+     * Funzione che setta path della directory dove Client salva documenti da editare
+     * @param clientSocketName nome del Socket connesso al Server
+     */
+    public void setClientsEditDocumentsDirectory(String clientSocketName){
+        this.clientsEditDocumentsDirectory = this.clientsEditDocumentsDirectory + clientSocketName + "/";
+    }
+
+
 
     /**
      * Funzione che fa il parsing del file di configurazione passato come argomento
@@ -89,7 +127,7 @@ public class ClientConfigurationManagement {
         //variabili di configurazione
         Path path = Paths.get(confFile);
         try {
-            List<String> lines = null; //.get(0);
+            List<String> lines; //.get(0);
 
             lines = Files.readAllLines(path, StandardCharsets.UTF_8);
 
@@ -110,6 +148,9 @@ public class ClientConfigurationManagement {
                         case "RMIPort":
                             this.RMIPort = Integer.parseInt(value);
                             break;
+                        case "multicastPort":
+                            this.multicastPort = Integer.parseInt(value);
+                            break;
                         case "connectionTimeout":
                             this.connectionTimeout = Integer.parseInt(value);
                             break;
@@ -117,6 +158,12 @@ public class ClientConfigurationManagement {
                         case "clientsDownloadsDocumentsDirectory":
                             value = currentPath + "/src" + value;
                             this.clientsDownloadsDocumentsDirectory = value;
+                            break;
+                        case "clientsEditDocumentsDirectory":
+                            value = currentPath + "/src" + value;
+                            this.clientsEditDocumentsDirectory = value;
+                            break;
+                        default:
                             break;
                     }
                 }
@@ -154,12 +201,20 @@ public class ClientConfigurationManagement {
             System.err.println("[ERR] >> RMIPort = " + this.RMIPort + " non valido");
             return FunctionOutcome.FAILURE;
         }
+        else if(this.multicastPort <= 1024){
+            System.err.println("[ERR] >> multicastPort = " + this.multicastPort + " non valido");
+            return FunctionOutcome.FAILURE;
+        }
         else if(this.connectionTimeout < 0){
             System.err.println("[ERR] >> connectionTimeout = " + this.connectionTimeout + " non valido");
             return FunctionOutcome.FAILURE;
         }
         else if(this.clientsDownloadsDocumentsDirectory.isEmpty()){
             System.err.println("[ERR] >> clientsDownloadsDocumentsDirectory non inizializzao ");
+            return FunctionOutcome.FAILURE;
+        }
+        else if(this.clientsEditDocumentsDirectory.isEmpty()){
+            System.err.println("[ERR] >> clientsEditDocumentsDirectory non inizializzao ");
             return FunctionOutcome.FAILURE;
         }
 
@@ -170,16 +225,45 @@ public class ClientConfigurationManagement {
     /**
      * Funzione che si occupa di allocare le risorse a seguito del parsing del file di configurazione.
      * In particolare:
-     * 1. verifica se esistenza della cartella Turing_database, creandola altrimenti
      * 2. verifica se esistenza della cartella Turing_edit, creandola altrimenti
      * 3. verifica se esistenza della cartella Turing_downloads, creandola altrimenti
      * 4. se le cartelle soprastanti esistono gia', le svuota
      * N.B. NO PERSISTENZA DATI TRA UNA CONNESSIONE ED UN'ALTRA => PROTOCOLLO STATELESS
-     * @return SUCCESS se le 3 cartelle sono state svuotate, oppure se non esistevano sono state create
-     *         FAILURE se la creazione di una delle 3 cartelle oppure lo svuotamento di una di esse non ha avuto successo
+     * @return SUCCESS se le 2 cartelle sono state svuotate, oppure se non esistevano sono state create
+     *         FAILURE se la creazione di una delle 2 cartelle oppure lo svuotamento di una di esse non ha avuto successo
      */
     public FunctionOutcome allocateConf(){
         boolean exist = this.fileManagement.checkEsistenceDirectory(this.clientsDownloadsDocumentsDirectory);
+        boolean exist2 = this.fileManagement.checkEsistenceDirectory(this.clientsEditDocumentsDirectory);
+
+        if(exist){
+            //@TODO trovare modo per svuotare cartella
+            //this.fileManagement.deleteDirectory(this.clientsDownloadsDocumentsDirectory);
+        }
+        FunctionOutcome check1 = this.fileManagement.createDirectory(this.clientsDownloadsDocumentsDirectory);
+
+        if(check1 == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile creare cartella di configurazione");
+            return FunctionOutcome.FAILURE;
+        }
+
+        if(exist2){
+            //@TODO trovare modo per svuotare cartella
+            //this.fileManagement.deleteDirectory(this.clientsEditDocumentsDirectory);;
+        }
+        FunctionOutcome check2 = this.fileManagement.createDirectory(this.clientsEditDocumentsDirectory);
+
+        if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile creare una delle 2 cartelle di configurazione");
+            return FunctionOutcome.FAILURE;
+        }
+
+        return FunctionOutcome.SUCCESS; //creazione/svuotamento 2 cartelle andato a buon fine
+    }
+
+    public FunctionOutcome allocateClientConf(){
+        boolean exist = this.fileManagement.checkEsistenceDirectory(this.clientsDownloadsDocumentsDirectory);
+        boolean exist2 = this.fileManagement.checkEsistenceDirectory(this.clientsEditDocumentsDirectory);
 
         if(exist){
             this.fileManagement.deleteDirectory(this.clientsDownloadsDocumentsDirectory);
@@ -191,7 +275,22 @@ public class ClientConfigurationManagement {
             return FunctionOutcome.FAILURE;
         }
 
-        return FunctionOutcome.SUCCESS; //creazione/svuotamento cartella andato a buon fine
+        if(exist2){
+            this.fileManagement.deleteDirectory(this.clientsEditDocumentsDirectory);
+        }
+        FunctionOutcome check2 = this.fileManagement.createDirectory(this.clientsEditDocumentsDirectory);
+
+        if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
+            System.err.println("[ERR] >> Impossibile creare una delle 2 cartelle di configurazione");
+            return FunctionOutcome.FAILURE;
+        }
+
+        return FunctionOutcome.SUCCESS; //creazione/svuotamento 2 cartelle andato a buon fine
+    }
+
+    public void deallocateClientConf(){
+        fileManagement.deleteDirectory(this.clientsDownloadsDocumentsDirectory);
+        fileManagement.deleteDirectory(this.clientsEditDocumentsDirectory);
     }
 
     /**
@@ -203,8 +302,10 @@ public class ClientConfigurationManagement {
         System.out.println("- Nome del Server = " + this.serverHost );
         System.out.println("- Porta di registrazione = " + this.serverPort );
         System.out.println( "- Porta utilizzata per gli inviti = " + this.RMIPort);
+        System.out.println( "- Porta utilizzata per gli indirizzi di multicast = " + this.multicastPort);
         System.out.println("- Valore del Timeout = " + this.connectionTimeout);
-        System.out.println("- Directory radice andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
+        System.out.println("- Directory andare a salvare i file scaricati = " + this.clientsDownloadsDocumentsDirectory);
+        System.out.println("- Directory dove andare a salvare i file da editare = " + this.clientsEditDocumentsDirectory);
         System.out.println();
     }
 }

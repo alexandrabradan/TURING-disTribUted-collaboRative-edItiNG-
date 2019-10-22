@@ -27,6 +27,14 @@ public enum ServerResponse{
     OP_USER_NOT_ALLOWED_TO_EDIT, //utente deve essere collaboratore/creatore di un documento per poterlo editare
     OP_SECTION_ALREADY_IN_EDITING_MODE, //se la sezione richiesta da editare e' gia' editata da qualcuno
     OP_SECTION_NOT_IN_EDITING_MODE, //se la sezione di cui si richiede fine editing non era settata ad editabile
+    OP_SECTION_EDITED_BY_SOMEONE_ELSE, //sezione e' editata da un Client diverso da quello che richiede END-EDIT
+    OP_DOCUMENT_ALREADY_EDIT_BY_USER, //utente sta gia' editando una sezione del documento
+    OP_SECTION_IMPOSSIBLE_TO_UPDATE, //problemi da parte del Server con l'aggiornamento di una sezione
     OP_ONLINE_INVITE_ADVERTISEMENT, //flag per segnalare soppraggiungere di un invito ad un utente connesso
     OP_SECTION_IS_COMING, //flag per segnalare il download di una sezione
+    OP_DOCUMENT_MULTICAST_IND_IS_COMING, //flag per segnalare invio indirizzo di multicast del documento
+    OP_WHO_IS_EDITING, //flag per segnalare l'invio da parte del Server di chi sta editando una sezione/documento
+    OP_SERVER_READY_FOR_UPDATE, //flag per segnalare al Client che puo' inviare sezione aggiornata al Server
+    OP_SEND_FAILURE, //invio messaggio sulla chat fallito
+    OP_SEND_IMPOSSIBLE_TO_READ_MESSAGE, // Server incapacitato di leggere msg da inviare sulla chat
 }

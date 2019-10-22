@@ -7,18 +7,36 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class ServerDataStructures {
 
-    //isieme degli utenti online
+    /**
+     * Tabella Hash che contiene degli utenti online
+     */
     private ConcurrentHashMap<SocketChannel, String> online_users;
-    //insieme degli indirizzi di multicast
-    private BlockingQueue<InetAddress> multicast_set;
-    //Tabella Hash che contiene le coppie: <nome_utente, utente>
+    /**
+     * Tabella Hash che contiene le coppie: <nome_utente, utente>
+     */
     private ConcurrentHashMap<String, User> hash_users;
-    //Tabella Hash che contiene le coppie: <nome_documento, documento>
+    /**
+     * Tabella Hash che contiene le coppie: <nome_documento, documento>
+     */
     private ConcurrentHashMap<String, Document> hash_documents;
-    // Oggetto utilizzato per gestire la sincronizzazione tra hash_users e hash_docs
-    private Object lockHash;
-    //insieme che contiene i channels da riregistrare al selettore dopo che un worker ha soddisfatto una richiesta
+    /**
+     * insieme degli indirizzi di multicast generati
+     */
+    private BlockingQueue<String> multicast_set;
+    /**
+     * Tabella Hash che contiene le coppie: <clientSocketName, clientSocketChannel>
+     */
+    private ConcurrentHashMap<String, SocketChannel> hash_socket_names;
+    /**
+     * Tabella Hash che contiene le coppie: <clientSocketChannel, invitesSocket>
+     */
+    private ConcurrentHashMap<SocketChannel, SocketChannel> hash_invites;
+
+    /**
+     * insieme che contiene i channels da riregistrare al selettore dopo che un worker ha soddisfatto una richiesta
+     */
     private BlockingQueue<SocketChannel> selectorKeysToReinsert;
+
 
     public ServerDataStructures(){
         //*************************************ALLOCAZIONE STRUTTURE DATI*********************************************//
@@ -26,56 +44,12 @@ public class ServerDataStructures {
         this.multicast_set = new LinkedBlockingQueue<>();
         this.hash_users = new ConcurrentHashMap<>();
         this.hash_documents = new ConcurrentHashMap<>();
+        this.hash_socket_names = new ConcurrentHashMap<>();
+        this.hash_invites = new ConcurrentHashMap<>();
         this.selectorKeysToReinsert = new LinkedBlockingQueue<>();
-
-        //*****************************INIZIALIZZAZIONE MUTUA ESCLUSIONE ESPLICITA************************************//
-        //inizializziamo gli oggetti utilizzati per la sincronizzazione
-        this.lockHash = new Object();
     }
 
     //***********************************************METODI GETTER****************************************************//
-
-    /**
-     * Funzione che restituisce l'insieme degli utenti online/connessi
-     * @return this.onlineUsers
-     */
-    public ConcurrentHashMap<SocketChannel, String> getOnline_users(){
-        return this.online_users;
-    }
-
-    /**
-     * Funzione che restituisce l'insieme degli indirizzi da utilizzare per le Chat in multicast, quando si apre un
-     * documento per editare
-     * @return this.multicast_set
-     */
-    public BlockingQueue<InetAddress> getMulticast_set(){
-        return this.multicast_set;
-    }
-
-    /**
-     * Funzione che restituisce il database degli utenti registrati al servizio
-     * @return this.hash_users
-     */
-    public ConcurrentHashMap<String, User> getHash_users(){
-        return this.hash_users;
-    }
-
-    /**
-     * Funzione che restituisce il database dei documenti memorizzati dal servizio
-     * @return this.hash_documents
-     */
-    public ConcurrentHashMap<String, Document> getHash_documents(){
-        return hash_documents;
-    }
-
-    /**
-     * Funzione che restituisce la lock utilizzata per mantenere consistenti il database degli utenti registrati
-     * e il database dei documenti
-     * @return this.lockHash
-     */
-    public Object getLockHash(){
-        return this.lockHash;
-    }
 
     /**
      * Funzione che restituisce l'insieme dei canali da reinserire nel selettore dopo che vi sono stati tolti, per
@@ -87,6 +61,32 @@ public class ServerDataStructures {
     }
 
     //********************************METODI PER GESTIRE INSIEME UTENTI ONLINE***************************************//
+
+    /**
+     * Funzione che restituisce la chiave associata al valore passato come argomento (se esiste)
+     * @param map mappa nella quale cercare la chiave associata al valore
+     * @param value valore di cui cercare la chiave
+     * @return chiave associata al valore passato come argomento
+     *          null se valore non esiste
+     */
+    private  <K, V> K getKey(Map<K, V> map, V value) {
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (entry.getValue().equals(value)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Funzione che ricerca all'interno della HashTable la chiave associata al valore passato come argomento
+     * @param username valore di cui ricercare la chiave
+     * @return chiave associata al valore passato come argomento
+     *          null se valore non esiste
+     */
+    public synchronized SocketChannel getSocketChannelFromUsername(String username){
+        return getKey(this.online_users, username);
+    }
 
     /**
      * Funzione che restituisce l'username/valore associato al SocketChannel/chiave il cui scopo e' verificare se
@@ -149,27 +149,101 @@ public class ServerDataStructures {
 
     /**
      * Funzione che controlla se l'indirizzo e' presente nell'insieme degli indirizzi di multicast o meno
-     * @param address indirizzo di cui bisogna verificare presenza nell'insieme degli indirizzi di multicast
+     * @param ind indirizzo di cui bisogna verificare presenza nell'insieme degli indirizzi di multicast
      * @return true se l'indirizzo è presente nell'insieme di multicast
      *  	   false altrimenti
      */
-    public boolean checkPresenceInMulticastAddress(InetAddress address) {
-        return this.multicast_set.contains(address);
+    public boolean checkPresenceInMulticastAddress(String ind) {
+        return this.multicast_set.contains(ind);
     }
 
     /**
      * Funzione che aggiunge un indirizzo all'insieme degli indirizzi di multicast
-     * @param address indirizzo da aggiungere
+     * @param ind indirizzo da aggiungere
      */
-    public void addToMulticastAddress(InetAddress address) {
-        this.multicast_set.add(address);
+    public void addToMulticastAddress(String ind) {
+        this.multicast_set.add(ind);
     }
 
     /**
      * Funzione che elimina indirizzo passato come argomento dall'insieme degli indirizzi di multicast
-     * @param address indirizzo da eliminare
+     * @param ind indirizzo da eliminare
      */
-    public void removeFromMulticastAddress(InetAddress address){this.multicast_set.remove(address);}
+    public void removeFromMulticastAddress(String ind){this.multicast_set.remove(ind);}
+
+    //**********************METODI PER ABILITARE UTENTE ALLA MODIFICA IN MUTUA ESCLUSIONE****************************//
+
+    /**
+     * 1. inserisco documento nell'insieme dei documenti che utente puo' modificare
+     * 2. inserisco utente nell'insieme dei modificatori del documento (se non e' creatore)
+     * Questi step vengono fatti in MUTUA ESCLUSIONE per garantire CONSITENZA tra ht utenti e ht documenti
+     * @param username nome dell'utente
+     * @param document nome del documento
+     * @param isCreator flag che specifica se l'utente e' creatore o meno del documento
+     */
+    public synchronized void validateUserAsModifier(String username, String document, boolean isCreator){
+        User user = getUserFromHash(username);
+        user.addSetDoc(document);
+
+        if(!isCreator){
+            Document doc = getDocumentFromHash(document);
+            doc.addUser(username);
+        }
+    }
+
+    public synchronized ServerResponse registerNewUser(String username){
+        return ServerResponse.OP_OK;
+    }
+
+    /**
+     * Funzione che permette di creare un nuovo documento in MUTUA ESCLUSIONE [metodo e' synchronized]
+     * per garantire l'univocita' dell'assegnazione del nome documento (solo un Worker alla volta accede a questo
+     * metodo => crea un nuovo documento)
+     * @param username nome dell'utente che vuole creare nuovo documento
+     * @param document nome del documento
+     * @param numSections numero sezioni del documento
+     * @return OP_OK se il documento e le relative sezioni sono state create con successo
+     *         OP_DOCUMENT_ALREADY_EXIST se il nuovo documento che si vuole creare esiste gia'
+     */
+    public synchronized ServerResponse registerNewDocument(String username, String document, int numSections){
+        //verifico se documento e' gia' esistente (controllo presenza documento all'interno della ht dei documenti)
+        boolean exist = checkIfDocumentExist(document);
+
+        if(exist)
+            return ServerResponse.OP_DOCUMENT_ALREADY_EXIST; //documento gia' esistente
+
+        //documento non esiste di gia'
+        //ricavo InetAddress da associare alla chat del documento
+        String chatInd = new MulticastAddressRandomGenerator(this).getRandomAddress();
+
+        //verifico che indirizzo di multicast non sia null (spazio degli indirizzi di multicast esaurito)
+        if(chatInd.isEmpty())
+           return ServerResponse.OP_DOCUMENT_MULTICAST_ADDRESS_RUN_OUT;
+
+        //documento non esiste => creo nuova istanza di Document
+        Document doc = new Document(document, username, numSections, chatInd);
+
+        //inserisco istanza del documento nella HashTable dei documenti
+        insertHashDocument(document, doc);
+
+        //inserisco documento nell'insieme dei documenti che utente puo' modificare
+        validateUserAsModifier(username, document, true);
+
+        return ServerResponse.OP_OK;
+    }
+
+    public synchronized ServerResponse registerUser(String username, String password){
+        //utente e' disconesso => verifico se username e' gia' stato preso da qualche altro utente
+        boolean alreadyTaken = checkIfUserIsRegister(username);
+        if(alreadyTaken)
+            return ServerResponse.OP_USERNAME_ALREADY_TAKEN; //username gia' in uso
+
+        //username non e' stato preso
+        //creo istanza dell'utente da registrare e da inserire nella HashTable
+        User newUser = new User(username, password);
+        insertHashUser(username, newUser);
+        return ServerResponse.OP_OK;
+    }
 
     //***********************************METODI PER GESTIRE TABELLA HASH UTENTI*************************************//
 
@@ -250,6 +324,78 @@ public class ServerDataStructures {
         this.hash_documents.forEach((key, value) -> System.out.println(key + " " + value.printDoc()));
     }
 
+    //************************METODI PER GESTIRE TABELLA HASH DEGLI INVITI********************************//
+
+    /**
+     * Funzione che restituisce l'invitesSocket corrispondete al clientSocket passato come argomento
+     * @param clientSocket SocketChannel di cui reperire porta assegnata
+     * @return porta corrispondente
+     *         null se clientSocket non esiste
+     */
+    public SocketChannel searchHashInvites(SocketChannel clientSocket) {
+        return hash_invites.get(clientSocket);
+    }
+
+    /**
+     * Funzione che inserisce una nuova associazioen tra clientSocket e l'invitesSocket nella Tabella Hash degli inviti
+     * @param clientSocket (CHIAVE)
+     * @param invitesSocket (VALORE)
+     */
+    public void insertHashInvites(SocketChannel clientSocket, SocketChannel invitesSocket) {
+        this.hash_invites.put(clientSocket, invitesSocket);
+    }
+
+    /**
+     * Funzione che elimina clientSocket e sua asscoiazione dalla ht degli inviti
+     * @param clientSocket SocketChannel da eliminare
+     * @return invitesSocket corrispondente
+     *         null se clientSocket non esiste
+     */
+    public SocketChannel removeHashInvites(SocketChannel clientSocket) {
+        return hash_invites.remove(clientSocket);
+    }
+
+    //************************METODI PER GESTIRE TABELLA HASH DEI NOMI DEI SOCKETS********************************//
+
+    /**
+     * Funzione che restituisce il SocketChannel relativo al corrispondente nome del Socket di tale SocketChannel
+     * @param socketName nome del Socket di cui reperire SocketChannel
+     * @return SocketChannel corrispondente
+     *         null se socketName non esiste
+     */
+    public SocketChannel searchHashSocketNames(String socketName) {
+        return hash_socket_names.get(socketName);
+    }
+
+    /**
+     * Funzione che inserisce una nuova associazioen tra socketName e il relativo clientSocketChannel nella
+     * Tabella Hash dei nomi dei sockets
+     * @param socketName (CHIAVE)
+     * @param clientSocketChannel (VALORE)
+     */
+    public void insertHashSocketNames(String socketName, SocketChannel clientSocketChannel) {
+        this.hash_socket_names.put(socketName, clientSocketChannel);
+    }
+
+    /**
+     * Funzione che elimina nameSocket e sua asscoiazione dalla ht dei nomi dei sockets
+     * @param socketName  da eliminare
+     * @return clientSocketChannel corrispondente
+     *         null se socketName non esiste
+     */
+    public SocketChannel removeHashSocketNames(String socketName) {
+        return hash_socket_names.remove(socketName);
+    }
+
+    /**
+     * Funzione che stampa la tabella hash dei nomi dei sockets
+     */
+    public void printSocketNames(){
+        System.out.println("STAMAPA TABELLA HASH NOMI SOCKETS");
+        this.hash_socket_names.forEach((key, value) -> System.out.println(key + " " + value));
+    }
+
+
     //**************************METODI PER GESTIRE INSIEME SOCKETS DA REINSERIRE NEL SELECTOR************************//
 
     /**
@@ -258,21 +404,5 @@ public class ServerDataStructures {
      */
     public void addSelectorKeysToReinsert(SocketChannel client){
         this.selectorKeysToReinsert.add(client);
-    }
-
-    /**
-     * Funzione che restituisce tutti i socketchanels da reinserire nel selettore
-     * @return la lista dei socketchannels da reinserire nel selettore
-     */
-    public SocketChannel[] getAllSocketsInSelectorKeysToReinsert(){
-        return this.selectorKeysToReinsert.toArray(new SocketChannel[0]);
-    }
-
-    /**
-     * Funzione che rimuove il SocketChannel passato come argomento dall'insieme dei sockets da reiserire nel selettore
-     * @param client socketchannel dell'utente da rimuovere
-     */
-    public void removeSelectorKeysToReinsert(SocketChannel client){
-        this.selectorKeysToReinsert.remove(client);
     }
 }

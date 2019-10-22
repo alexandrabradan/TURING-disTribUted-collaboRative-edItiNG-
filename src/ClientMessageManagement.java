@@ -1,11 +1,8 @@
-import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 
 public class ClientMessageManagement {
     /**
@@ -48,16 +45,24 @@ public class ClientMessageManagement {
      * Classe per gestire  cartelle e file
      */
     private FileManagement fileManagement;
+    /**
+     * riferimento al chatListener del file
+     */
+    private ClientChatListener clientChatListenerThread;
 
     /**
      * Costruttore della classe RequestManagement
      * @param clientSocket SocketChannel del Client di cui bisogna inviare richiesta e leggere risposta
      * @param configurationsManagement per reperire var. di configurazione
+     * @param clientChatListenerThread riferimento al chatListener del Client, da attivare e disattivare a seconda
+     *                                 delle operazioni richieste dal client
      */
-    public ClientMessageManagement(SocketChannel clientSocket, ClientConfigurationManagement configurationsManagement){
+    public ClientMessageManagement(SocketChannel clientSocket, ClientConfigurationManagement configurationsManagement,
+                                   ClientChatListener clientChatListenerThread){
         this.clientSocket = clientSocket;
         this.fileManagement = new FileManagement();
         this.configurationsManagement = configurationsManagement;
+        this.clientChatListenerThread = clientChatListenerThread;
         this.socketChannelReadManagement = new SocketChannelReadManagement(this.clientSocket);
         this.socketChannelWriteManagement = new SocketChannelWriteManagement(this.clientSocket);
 
@@ -72,6 +77,14 @@ public class ClientMessageManagement {
         this.currentCommand = CommandType.HELP;
         this.currentArg1 = "";
         this.currentArg2 = "";
+    }
+
+    /**
+     * Funzione che restituisci il contenuto del BODY sottoforma di stringa
+     * @return contenuto del ByteBuffer BODY come stringa
+     */
+    public String getBodyMessage(){
+        return new String(this.body.array(), StandardCharsets.UTF_8);
     }
 
     /**
@@ -92,17 +105,17 @@ public class ClientMessageManagement {
         //invocazioni precedenti
         setDefaultVariablesValues();
 
-        //inizializzo commando corrente ed eventuali argomenti
-        this.currentCommand = command;
-        this.currentArg1 = arg1;
-        this.currentArg2 = arg2;
-
         //invio HEADER contenente:
         //tipo di richiesta => e' ENUM => intero => codificato con 4 bytes
         // dim. body/argomenti richiesta => intero => codificato con 4 bytes
         this.header = ByteBuffer.allocate(8);
 
         this.header.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
+
+        //inizializzo commando corrente ed eventuali argomenti
+        this.currentCommand = command;
+        this.currentArg1 = arg1;
+        this.currentArg2 = arg2;
 
         String request =  ""; //richiesta vuota
 
@@ -166,7 +179,7 @@ public class ClientMessageManagement {
         this.header.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
 
         ServerResponse responseType; //tipo risposta
-        int responseBodyLength = 0;  //lunghezza BODY
+        int responseBodyLength;  //lunghezza BODY
 
         //leggo dimensione risposta
         FunctionOutcome check = this.socketChannelReadManagement.read(this.header, 8);
@@ -191,12 +204,20 @@ public class ClientMessageManagement {
 
                 if(check == FunctionOutcome.FAILURE)
                     return FunctionOutcome.FAILURE; //lettura BODY fallita
-                else return manageResponse(responseType, responseBodyLength, currentUser); //lettura HEADER+BODY successo => stampa personalizzata
+                else {
+                    //lettura HEADER+BODY successo => stampa personalizzata
+                    return manageResponse(responseType, responseBodyLength, currentUser);
+                }
             }
-            else return manageResponse(responseType, responseBodyLength, currentUser); //lettura HEADER successo => stampa personalizzata
+            else {
+                //lettura HEADER successo => stampa personalizzata
+                return manageResponse(responseType, responseBodyLength, currentUser);
+            }
         }
         else return FunctionOutcome.FAILURE; //lettura HEADER fallita
     }
+
+
 
     /**
      * Funzione che si occupa di attendere l'invio da parte del Server del contenuto delle sezioni
@@ -208,13 +229,13 @@ public class ClientMessageManagement {
     public FunctionOutcome readAndCreateSectionsForClient(String document, int i) {
 
         //ricevo HEADER contenente:
-        // OP_SECTION_IS_COMIGN => enum => flag
+        // OP_SECTION_IS_COMING => enum => flag
         // dim. body (contenuto file/sezione) => intero => codificato con 4 bytes
         this.header = ByteBuffer.allocate(8);
 
         this.header.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
 
-        int contentLength = 0;  //lunghezza BODY (contenuto del file)
+        int contentLength;  //lunghezza BODY (contenuto del file)
 
         //leggo dimensione risposta
         FunctionOutcome check = this.socketChannelReadManagement.read(this.header, 8);
@@ -266,6 +287,40 @@ public class ClientMessageManagement {
             else return FunctionOutcome.SUCCESS; //lettura HEADER successo
         }
         else return FunctionOutcome.FAILURE; //lettura HEADER fallita
+    }
+
+    /**
+     * Funzione che si occupa di inviare al Server la sezione aggiornata della sezione editata
+     * @param currentUser utente attualmente connesso
+     * @param document documento
+     * @param section sezione
+     * @return SUCCESS se invio ha avuto successo
+     *         FAILURE altrimenti
+     */
+    public FunctionOutcome sendUpdateSection(String currentUser, String document, String section){
+
+        //invio sezione aggiornta al Server
+        //reperisco contenuto del file aggiornato e lo mando al Server
+        String clientEditDirectory = this.configurationsManagement.getClientsEditDocumentsDirectory();
+        String documentDirectory = clientEditDirectory + document + "/";
+        String sectionName = documentDirectory + section + ".txt";
+        String fileContent = fileManagement.readFile(sectionName);
+
+        //invio richiesta al Server
+        FunctionOutcome check = writeRequest(currentCommand, fileContent, "");
+
+        if(check == FunctionOutcome.FAILURE){
+            return FunctionOutcome.FAILURE;  //segnalo fallimento al Client
+        }
+
+        //cancello sezione dalla cartella di editing
+        fileManagement.deleteFile(sectionName);
+
+        //cancello documento che conteneva sezione da editare
+        fileManagement.deleteDirectory(documentDirectory);
+
+        //attendo risposta di esito dal Server
+        return readResponse(currentUser);
     }
 
     /**
@@ -333,11 +388,31 @@ public class ClientMessageManagement {
 
                                 //cancello documento/cartella creato
                                 this.fileManagement.deleteDirectory(documentDirectory);
+                                return FunctionOutcome.FAILURE;
                             }
                         }
 
-                        System.out.println(String.format("[%s] >> Contenuto del documento |%s| scaricato con successo",
-                                currentUser, currentArg1));
+                        //leggo quali sezioni sono editate e da chi
+                        FunctionOutcome check = readResponse(currentUser);
+
+                        if(check == FunctionOutcome.FAILURE){
+                            System.out.println(String.format("[%s] >> Contenuto del documento |%s| scaricato con successo" +
+                                            ", ma impossibile reperire informazioni su chi lo sta editando",
+                                    currentUser, currentArg1));
+                        }
+                        else{
+                            System.out.println(String.format("[%s] >> Contenuto del documento |%s| scaricato con successo",
+                                    currentUser, currentArg1));
+
+                            //recupero messaggio del Client
+                            String whoIsEditing = getBodyMessage();
+                            if(!whoIsEditing.equals(String.format("Nessuno sta editando il documento |%s| in questo momento",
+                                                                                                        currentArg1))){
+                                System.out.println(String.format("[%s] Documento |%s| ediatato da: ", currentUser, currentArg1));
+                                System.out.println("      " + whoIsEditing);
+                            }
+                            else System.out.println(String.format("[%s] >> " + whoIsEditing, currentUser));
+                        }
 
                         break;
                     }
@@ -356,10 +431,26 @@ public class ClientMessageManagement {
                             System.out.println(String.format("[%s] >> Impossibile scaricare la sezione |%s| del " +
                                     "documento |%s|. Download della sezione fallito", currentUser,
                                                                      Integer.parseInt(currentArg2),  currentArg1));
+                            return FunctionOutcome.FAILURE;
                         }
                         else{
-                            System.out.println(String.format("[%s] >> Sezione |%d| del documento |%s| scaricata con successo",
-                                    currentUser,  Integer.parseInt(currentArg2), currentArg1));
+
+                            //leggo se qualcuno sta editando la sezione
+                            check = readResponse(currentUser);
+
+                            if(check == FunctionOutcome.FAILURE){
+                                System.out.println(String.format("[%s] >> Sezione |%d| del documento |%s| scaricata con successo," +
+                                                " ma impossibile reperire informazioni su chi la sta editando",
+                                        currentUser,  Integer.parseInt(currentArg2), currentArg1));
+                            }
+                            else{
+                                System.out.println(String.format("[%s] >> Sezione |%d| del documento |%s| scaricata con successo",
+                                        currentUser,  Integer.parseInt(currentArg2), currentArg1));
+
+                                //recupero messaggio del Client
+                                String whoIsEditing = getBodyMessage();
+                                System.out.println(String.format("[%s] >> " + whoIsEditing, currentUser));
+                            }
                         }
                         break;
                     }
@@ -373,35 +464,90 @@ public class ClientMessageManagement {
                         break;
                     }
                     case EDIT:{
-                        System.out.println(String.format("[%s] >> Inizio modifica della sezione |%s| del" +
-                                " documento |%s|", currentUser, currentArg2, currentArg1));
-                        //@TODO APRIRE EDITOR PER EDITARE LA SEZIONE
+                        //scarico sezione del documento dal Sever per inserirlo nella cartella di editing
+                        String clientEditDirectory = this.configurationsManagement.getClientsEditDocumentsDirectory();
+                        String documentDirectory = clientEditDirectory + currentArg1 + "/";
+
+                        if(!this.fileManagement.checkEsistenceDirectory(documentDirectory))
+                            this.fileManagement.createDirectory(documentDirectory);
+
+                        //mi appresto a leggere la sezione richiesta
+                        FunctionOutcome check = readAndCreateSectionsForClient(documentDirectory, Integer.parseInt(currentArg2));
+
+                        if(check == FunctionOutcome.FAILURE){
+                            System.err.println(String.format("[%s] >> Impossibile scaricare la sezione |%s| del " +
+                                            "documento |%s| per ediatarla. Download della sezione fallito", currentUser,
+                                    Integer.parseInt(currentArg2),  currentArg1));
+                            return FunctionOutcome.FAILURE;
+                        }
+                        else{
+                            //attendo risposta dal Server
+                            check = readResponse(currentUser);
+
+                            if(check == FunctionOutcome.FAILURE){
+                                System.err.println(String.format("[%s] >> Impossibile leggere indirizzo di multicast del" +
+                                                " documento per create chatListener.", currentUser));
+                                return FunctionOutcome.FAILURE;
+                            }
+
+                            System.out.println(String.format("[%s] >> Inizio modifica della sezione |%s| del" +
+                                    " documento |%s|", currentUser, currentArg2, currentArg1));
+                        }
+
+                        //apro sezione scaricata
+                        String sectionName = documentDirectory + this.currentArg2 + ".txt";
+                        fileManagement.openFile(sectionName);
                         break;
                     }
                     case END_EDIT:{
-                        System.out.println(String.format("[%s] >> Fine modifica della sezione |%s| del" +
-                                " documento |%s|", currentUser, currentArg2, currentArg1));
-                        //@TODO SALVATAGGIO SEZIONE E CHIUSUA EDITOR (se non gia' fatta)
-                        break;
-                    }
-                    case SEND:{
-                        System.out.println(String.format("[%s] >> Invio messaggio sulla Chat avvenuto con successo",
-                                                                                                        currentUser));
+                        //faccio terminare chatListener del documento che ho terminato di editare
+                        terminateChatListener();
                         break;
                     }
                     case RECEIVE:{
                         System.out.println(String.format("[%s] >> Hai un nuovo messaggio sulla Chat", currentUser));
                         System.out.println(responseBody);
-                        //@TODO DECIDERE LIMITE HISTORY
+                        break;
+                    }
+                    case SEND:
+                    case I_AM_CLIENT_SOCKET:
+                    case I_AM_INVITE_SOCKET:{
+                        //System.out.println(String.format("[Turing] >> %s eseguito corretamente", currentCommand));
                         break;
                     }
                     default:
                         break;
                 }
-                break;
+
+                //break;
+                return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
+            }
+            case OP_ONLINE_INVITE_ADVERTISEMENT:{
+                System.out.println();
+                System.out.println("    " + this.getBodyMessage());
+                System.out.println();
+                return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
+            }
+            case OP_DOCUMENT_MULTICAST_IND_IS_COMING:{
+                //lettura indirizzo di multicast andata a buon fine => lo recupero per attivare chatListener
+                String multicastInd = getBodyMessage();
+
+                //creo chatListener
+                this.clientChatListenerThread = new ClientChatListener(currentUser, multicastInd,
+                        configurationsManagement);
+
+                //attivo chatListener
+                this.clientChatListenerThread.start();
+                return FunctionOutcome.SUCCESS; //notifico alla EDIT che creazione del chatListener ha avuto successo
+            }
+            case OP_WHO_IS_EDITING:{
+                return FunctionOutcome.SUCCESS; //notifico alla SHOW_DOC / SHOW_SECTION lettura di chi sta editando
+            }
+            case OP_SERVER_READY_FOR_UPDATE:{
+                return sendUpdateSection(currentUser, currentArg1, currentArg2);
             }
             case OP_USER_NOT_ONLINE:{
-                System.err.println(String.format("[ERR] >> Utente |%s| NON connesso.", currentUser));
+                System.err.println("[ERR] >> Utente NON connesso.");
                 break;
             }
             case OP_USER_NOT_REGISTERED:{
@@ -419,7 +565,7 @@ public class ClientMessageManagement {
             }
             case OP_SECTION_NOT_EXIST:{
                 System.err.println(String.format("[ERR] >> Sezione |%s| del documento |%s| NON " +
-                        "registrato.", currentArg2, currentArg1));
+                        "esiste.", currentArg2, currentArg1));
                 break;
             }
             case OP_DOCUMENT_TOO_SHORT:{
@@ -473,23 +619,70 @@ public class ClientMessageManagement {
             }
             case OP_SECTION_ALREADY_IN_EDITING_MODE:{
                 System.err.println(String.format("[ERR] >> Non puoi editare la sezione|%s| del documento|%s|."
-                        + "Sezione e' gia' editata da qualcuno.", currentArg2, currentArg1));
+                        + " Sezione e' gia' editata da |%s|.", currentArg2, currentArg1, getBodyMessage()));
                 break;
             }
             case OP_SECTION_NOT_IN_EDITING_MODE:{
                 System.err.println(String.format("[ERR] >> Non puoi finire di fare l'editing della sezione|%s| del documento|%s|."
-                        + "Sezione non settata per l'editing precedentemente.", currentArg2, currentArg1));
+                        + " Sezione non settata per l'editing precedentemente.", currentArg2, currentArg1));
+                break;
+            }
+            case OP_SECTION_EDITED_BY_SOMEONE_ELSE:{
+                System.err.println(String.format("[ERR] >> Non puoi finire di fare l'editing della sezione|%s| del documento|%s|."
+                        + "Sezione non e' editata da te.", currentArg2, currentArg1));
+                break;
+            }
+            case OP_DOCUMENT_MULTICAST_ADDRESS_RUN_OUT:{
+                System.err.println("[ERR] >> Indirizzi di multicast esauriti.");
+                break;
+            }
+            case OP_DOCUMENT_ALREADY_EDIT_BY_USER:{
+                System.err.println(String.format("[ERR] >> Stai gia' editando una sezione del documento |%s|." +
+                        " Non puoi editare piu' sezioni dello stesso documento alla volta.", this.currentArg1));
+                break;
+            }
+            case  OP_SECTION_IMPOSSIBLE_TO_UPDATE:{
+                System.err.println(String.format("[ERR] >> Impossibile aggiornare la sezione |%s| del documento |%s|",
+                        this.currentArg2, this.currentArg1));
                 break;
             }
             case  OP_INVALID_REQUEST:{
                 //non si verifica mai, ma inserito qui per scrupolo qual'ora check del parsing locale del Client fallise
-                System.err.println("[ERR] >> Richiesta non rientra nei servizi offerti");
+                System.err.println("[ERR] >> Richiesta non rientra nei servizi offerti.");
+                break;
+            }
+            case OP_SEND_FAILURE:{
+                System.err.println("[ERR] >> Invio messaggio sulla chat fallito.");
+                break;
+            }
+            case OP_SEND_IMPOSSIBLE_TO_READ_MESSAGE:{
+                System.err.println("[ERR] >> Server incapacitato di leggere msg da inviare sulla chat.");
                 break;
             }
             default:
                 break;
         }
 
-        return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
+        //notifico al ciclo principale che richiesta e' stata scartata dal Server / Server si e' disconesso
+        return FunctionOutcome.FAILURE;
+    }
+
+    /**
+     * Funzione che stampa i messaggi ricevuti sulla chat
+     */
+    public void visualizeHistory(){
+        if(this.clientChatListenerThread != null)
+            this.clientChatListenerThread.printHistory();
+    }
+
+    /**
+     * Funzione che fa terminare chatListener (se attivo)
+     */
+    public void terminateChatListener(){
+        if(this.clientChatListenerThread != null)
+            this.clientChatListenerThread.interruptClientChatListener();
+
+        //resetto riferimento al chatListener
+        this.clientChatListenerThread = null;
     }
 }

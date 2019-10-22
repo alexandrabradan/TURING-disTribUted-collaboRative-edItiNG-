@@ -1,10 +1,12 @@
 import java.net.InetAddress;
+import java.nio.channels.SocketChannel;
 import java.util.LinkedHashSet;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.Set;
 
 public class Document {
-
+    /**
+     * costante che contiene riferimento alla stringa vuota
+     */
+    private static final String EMPTY_STRING = "";
     /**
      * nome del documento
      */
@@ -19,34 +21,35 @@ public class Document {
      */
     private LinkedHashSet<String> modifiers;
     /**
-     * array di locks per ottenere mutua esclusione accesso sezioni documento
+     * array per ottenere mutua esclusione accesso sezioni documento => slot corrisponde all'username che ha
+     * acquisito mutua esclusione sulla sezione, altrimenti "" se sezione e' libera
      */
-    private ReentrantLock[] sectionsLockArray;
+    private String[] sectionsLockArray;
     /**
      *  indirizzo statico di multicast associato per la chat per questo documento
      */
-    private InetAddress chatAddress;
+    private String chatInd;
 
     /**
      * Costruttore della classe
      * @param document nome del documento
      * @param creator  nome del creatore del documento
      * @param numSections numero sezioni del documento
-     * @param chatAddress indirizzo di multicast per la chat
+     * @param chatInd indirizzo di multicast per la chat
      */
-    public Document(String document, String creator, int numSections, InetAddress chatAddress) {
+    public Document(String document, String creator, int numSections, String chatInd) {
         this.document = document;
         this.creator = creator;
 
         this.modifiers = new LinkedHashSet<>();
 
-        //inizializzo l'array di locks
-        this.sectionsLockArray = new ReentrantLock[numSections];
+        //inizializzo l'array per la mutua esclsuione delle sezioni
+        this.sectionsLockArray = new String[numSections];
         for(int k = 0; k < numSections; k++) {
-            sectionsLockArray[k] = new ReentrantLock(true);
+            sectionsLockArray[k] = EMPTY_STRING;
         }
 
-        this.chatAddress = chatAddress;
+        this.chatInd = chatInd;
     }
 
     /**
@@ -79,8 +82,8 @@ public class Document {
      * Funzione che restituisce l'indirizzo di multicast della chat associata al documento
      * @return this.chatAddress indirizzo di multicast
      */
-    public synchronized InetAddress getChatAddress() {
-        return this.chatAddress;
+    public synchronized String getChatInd() {
+        return this.chatInd;
     }
 
     /**
@@ -119,31 +122,57 @@ public class Document {
         this.modifiers.add(username);
     }
 
+    public synchronized String[] getSectionsLockArray(){return this.sectionsLockArray;}
+
     /**
      * Funzione che prova a richiedere la lock su una sezione
      * @param section sezione di cui acquisire la mutua esclusione
-     * @return true ssezione di cui acquisire la lock
+     * @param username utente che vuole acquisire  mutua esclusione sulla sezione
+     * @return utente che ha in posseso la sezione (potrebbe essere l'utente che la desidera,
+     *                 oppure un altro utente che l'aveva acquisita in precedenza)
      */
-    public synchronized void lockSection(int section) {
-        sectionsLockArray[section].lock();
+    public synchronized String lockSection(int section, String username) {
+        int sectionInSectionsArray = section - 1; //ho numerato sezioni da 1
+        if(checkIfSectionIsLocked(section).equals("")){
+            this.sectionsLockArray[sectionInSectionsArray] = username; //acquisisco mutua esclsuione
+            return username; //mutua esclusione acquisita
+        }
+        else return checkIfSectionIsLocked(section); //mutua esclusione gia' acquisita => ritorno utente che la possiede
     }
 
     /**
      * Funzione che controlla se una determinata sezione è bloccata o meno
      * @param section sezione da controllare
-     * @return true se la sezione è bloccata
-     *  	   false altrimenti
+     * @return username dell'utente che ha acquisito la sezione
+     *         "" altrimenti
      */
-    public synchronized boolean checkIfSectionIsLocked(int section) {
-        return sectionsLockArray[section].isLocked();
+    public synchronized String checkIfSectionIsLocked(int section) {
+        int sectionInSectionsArray = section - 1;
+        if(sectionsLockArray[sectionInSectionsArray].isEmpty()){
+            return "";
+        }
+        else {
+            return sectionsLockArray[sectionInSectionsArray];
+        }
     }
 
     /**
      * Funzione che rilascia la lock di una sezione
      * @param section sezione di cui rilasciare la lock
+     * @param username utente che ha acquisito la sezione
+     * @return SUCCESS se e' stato possibile rilasciare mutua esclusione
+     *         FAILURE se non e' stato possibile rilasciare mutua esclusione (sezione non in editing mode o
+     *         editata da qualcunaltro)
      */
-    public synchronized void unlockSection(int section) {
-        sectionsLockArray[section].unlock();
+    public synchronized ServerResponse unlockSection(int section, String username) {
+        int sectionInSectionsArray = section - 1;
+        if(checkIfSectionIsLocked(section).equals(username)){
+            sectionsLockArray[sectionInSectionsArray] = EMPTY_STRING; //rilascio mutua esclusione
+            return ServerResponse.OP_OK; //mutua esclusione rilasciata
+        }
+        else if(checkIfSectionIsLocked(section).equals(""))
+            return ServerResponse.OP_SECTION_NOT_IN_EDITING_MODE; //sezione non in editing mode
+        else return ServerResponse.OP_SECTION_EDITED_BY_SOMEONE_ELSE;  //SocketChannel non corrisponde con chi l'ha presa
     }
 
     /**
@@ -152,7 +181,7 @@ public class Document {
      */
     public synchronized String printDoc(){
         String stringToPrint = String.format("Document = %s  Creator = %s chatAddress = %s modifiers = |",
-                this.document, this.creator, this.chatAddress);
+                this.document, this.creator, this.chatInd);
 
         StringBuilder tmpString = new StringBuilder();
         for(String modifier: modifiers){

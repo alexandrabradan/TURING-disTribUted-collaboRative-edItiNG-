@@ -45,18 +45,11 @@ public class TuringServer {
 
         //***************************************CREAZIONE LISTENER THREAD*********************************************//
 
-        TuringListener listener = new TuringListener(configurationsManagement);
+        TuringListener listener = new TuringListener(configurationsManagement, Thread.currentThread());
         Thread thread = new Thread(listener);
         thread.start();
 
         //**********************************ATTENDO TERMINAZIONE LISTENER THREAD**************************************//
-
-        try {
-            thread.join();
-        } catch (InterruptedException e) {
-            System.out.println("[Turing] >> Listener Thread terminato");
-            e.printStackTrace();
-        }
 
         System.out.println();
         System.out.println("[Turing] >> SERVER TURING (disTribUted collaboRative edItiNG) TERMINATO");

@@ -1,12 +1,11 @@
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.net.InetAddress;
+import java.net.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -55,6 +54,79 @@ public class TuringTask {
     }
 
     /**
+     * Funzione privata chiamata da "sendPendingInvites" per reperire il nome del documento contenuto nella stringa-invito
+     * presente all'interno dell'insieme degli inviti pendenti di un utente
+     * @param invite incito-stringa da cui reperire il nome del documento
+     * @return nome del documento
+     *         null se subentra qualche errore
+     */
+    private String getDocumentFromInvite(String invite){
+        char[] strIntoArray = invite.toCharArray();
+        StringBuilder document = new StringBuilder();
+        int pipeCount = 0; //contatore pipe contenute nella stringa
+        int pipePosition = -1; //posizione pipe
+
+        for(int i = 0; i < strIntoArray.length; i++){
+            if(strIntoArray[i] == '|'){
+                pipePosition = i;
+                pipeCount = pipeCount + 1;
+            }
+
+            if(pipeCount == 3 && i > pipePosition){
+                document.append(String.valueOf(strIntoArray[i]));
+            }
+        }
+        return document.toString();
+    }
+
+    /**
+     * Funzione privata che viene chiamata dalla "loginTask" ogni volta che un utente fa il LOGIN con successo
+     * alla piattafroma, per controllare se mentre l'utente eraa offfline sono sopraggiunti inviti e inviarglieli
+     * @param usr istanza dell'utente dalla quale recuperare insieme inviti pendenti
+     */
+    private void sendPendingInvites(User usr){
+        //recupero canale di invio inviti dell'utente
+        SocketChannel invitesChannel = this.serverDataStructures.searchHashInvites(this.client);
+
+        if(invitesChannel == null) { //utente  si e' disconesso / prima volta che fa LOGIN
+            return;
+        }
+
+        //creo nuova istanza di ServerMessageManagement per mandargli msg
+        ServerMessageManagement smmForDest = new ServerMessageManagement(invitesChannel);
+
+        //acquisisco mutua esclusione sul canale di invio degli inviti dell'utente e gli invio l'invito
+        synchronized (usr.getLockInvitesSocket()){
+            //reperisco l'insieme delle notifiche pendenti dell'utente
+            Set<String> pendingIvites = usr.getSetPendingDocs();
+
+            Set<String> tmpSendInvites = new LinkedHashSet<>();
+
+            //itero sugli inviti pendenti e provo ad inviarli
+            for(String invite: pendingIvites){
+                //provo ad inviargli invito
+                FunctionOutcome check = smmForDest.writeResponse(ServerResponse.OP_ONLINE_INVITE_ADVERTISEMENT, invite);
+
+                if(check == FunctionOutcome.SUCCESS){ //invio ha avuto successo
+                    usr.removePendingInvite(invite);   //elimino invito pendente dall'insieme inviti pendenti
+
+                    //ricavo nome del documento a cui utente e' stato invitato a collaborare
+                    String document = getDocumentFromInvite(invite);
+
+                    if(document.isEmpty())
+                        continue; //itero invito successivo
+
+                    this.serverDataStructures.validateUserAsModifier(usr.getUsername(), document, false);
+                }
+                else{  //check == FunctionOutcome.FAILURE => utente si e' discoesso
+                    // lascio invito nell'insieme e provero' ad inviarglielo al successivo LOGIN
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
      * Funzione che si occupa di soddisfare la richiesta di connessione di un utente al servizio
      * @param username nome dell'utente da connettere
      * @param password password dell' utente da connettere
@@ -90,7 +162,41 @@ public class TuringTask {
         //connetto utente => inserisco SocketChannel e utente nella HashTable degli utenti online
         this.serverDataStructures.putToOnlineUsers(client, username);
 
+        //invio eventuali inviti pendenti
+        //N.B. La prima volta che utente fara' LOGIN suo invitesSocket non sara' attivo => viene attivato
+        // infatti con il suo primo LOGIN andato a successo (non avra' comunque inviti pendenti proprio perche' ha appena
+        // effetuato la registrazione e la connessione)
+        sendPendingInvites(user);
+
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+    }
+
+    /**
+     * Funzione privata chiamata da "logoutTask" che si occupa di liberare le eventuali sezioni
+     * acquisite dal Client
+     * @param username nome dell'utente di cui si e' fato il logout
+     */
+    private void freeAcquiredSections(String username){
+        //verifico se il Client ha acquisito mutua sezione su qualche sezione e la rilascio, in caso affermativo
+        //AVENDO TOLTO CLIENT DAI CONNESSI => INVITI A COLLABORARE A NUOVI DOCUMENTI VANNO NEI PENDING_INVITES
+        // => NUOVI DOCUMENTI INSERITI NELL'INSIEME DEI DOCUMENTI DELL'UTENTE QUANDO FA LOGIN => insieme consistente
+        //itero sull'insieme dei documenti del Client
+        User usr = this.serverDataStructures.getUserFromHash(username); //recupero istanza dell'utente
+        Set<String> usrDocs =  usr.getSetDocs(); //recupero insieme documenti dell'utente
+        for(String document: usrDocs){
+            Document doc = this.serverDataStructures.getDocumentFromHash(document); //recupero istanza del documento
+            //itero sull'array di lock per verificare se Client ne ha acquisita qualcuna
+
+            //NON MI INTERESSA CONSISTENZA (devo solo trovare slots eventualmente occupati dal clientSocket)
+
+            String[] sectionsLockArray = doc.getSectionsLockArray();
+            for(int i = 0; i < sectionsLockArray.length; i++){
+                if(sectionsLockArray[i].equals(username)){
+                    //libero sezione
+                    doc.unlockSection(i + 1, username); //loop parte da 0, conteggio sezioni da 1
+                }
+            }
+        }
     }
 
     /**
@@ -107,6 +213,9 @@ public class TuringTask {
         if(username == null)
             //utente non e' connesso
             return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        //libero le eventuali sezioni acquisite dall'utente
+        freeAcquiredSections(username);
 
         //(chiave, valore) eliminati dalla ht utenti online
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
@@ -136,39 +245,10 @@ public class TuringTask {
         //4. recupero dalla HashTable degli utenti registrati la sua istanza di User
         //5. aggiungo documento ai documenti modificabili dall'utente
 
-        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
-        synchronized(this.serverDataStructures.getLockHash()) {
+        ServerResponse serverResponse = this.serverDataStructures.registerNewDocument(username, document, numSections);
 
-            //verifico se documento e' gia' esistente (controllo presenza documento all'interno della ht dei documenti)
-            boolean exist = this.serverDataStructures.checkIfDocumentExist(document);
-
-            if(exist){
-                //utente ha gia' creato un documento con lo stesso nome (dato che nome documento e' dato dalla
-                // concatenazione del nome_documento e dell'username del creatore, e' sicuramente stato lui a crearlo)
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_ALREADY_EXIST, "");
-            }
-            else{
-                //ricavo InetAddress da associare alla chat del documento
-                InetAddress chatAddress = new MulticastAddressRandomGenerator(this.serverDataStructures).getRandomAddress();
-
-                //verifico che indirizzo di multicast non sia null (spazio degli indirizzi di multicast esaurito)
-                if(chatAddress == null)
-                    return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_MULTICAST_ADDRESS_RUN_OUT,
-                                                                                                        "");
-
-                //documento non esiste => creo nuova istanza di Document
-                Document doc = new Document(document, username, numSections, chatAddress);
-
-                //inserisco istanza del documento nella HashTable dei documenti
-                this.serverDataStructures.insertHashDocument(document, doc);
-
-                //recupero dalla HashTable degli utenti registrati la sua istanza di User
-                User user = this.serverDataStructures.getUserFromHash(username);
-
-                //inserisco documento nell'insieme dei documenti che utente puo' modificare
-                user.addSetDoc(document);
-            }
-        }
+        if(serverResponse != ServerResponse.OP_OK)
+            return this.serverMessageManagement.writeResponse(serverResponse, "");
 
         //recupero cartella dedicata alla memorizzazione dei files dell'utente
         String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory();
@@ -225,53 +305,71 @@ public class TuringTask {
         //   offline (notifica ricevuta quando fa LOGIN) oppure online (notifica ricevuta istantanemente grazie al
         //   Listener thread degli inviti del Client)
 
-        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
-        synchronized(this.serverDataStructures.getLockHash()) {
-            //verifico se documento esiste (provo a reperirlo nella ht dei documenti)
-            Document doc = this.serverDataStructures.getDocumentFromHash(document);
+        //verifico se documento esiste (provo a reperirlo nella ht dei documenti)
+        Document doc = this.serverDataStructures.getDocumentFromHash(document);
 
-            if(doc == null)  //documento non esiste
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+        if(doc == null)  //documento non esiste
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
 
-            //verifico se il destinatario e' registato al servizio (cercandolo nella ht degli utenti)
-            User receiver = this.serverDataStructures.getUserFromHash(dest);
-            if(receiver == null) //destinatario non e'registrato al servizio
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_NOT_REGISTERED, "");
+        //verifico se il destinatario e' registato al servizio (cercandolo nella ht degli utenti)
+        User receiver = this.serverDataStructures.getUserFromHash(dest);
+        if(receiver == null) //destinatario non e'registrato al servizio
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_NOT_REGISTERED, "");
 
-            //reperisco creatore del documento
-            String creator = doc.getCreatorName();
+        //verifico che l'utente sia il creatore del documento (altrimenti non lo puo' condividere)
+        if(!doc.isCreator(username))
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_CREATOR, "");
 
-            //verifico che l'utente sia il creatore del documento (altrimenti non lo puo' condividere)
-            if(!doc.isCreator(username))
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_CREATOR, "");
+        //utente e' il creatore del documento e dest non e' suo creatore
+        //verifico che destinatario non sia l'utente stesso
+        if(username.equals(dest))
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_IS_DEST, "");
 
-            //verifico che il destinatario non sia il creatore del documento (in tal caso e' gia' collaboratore)
-            if(!doc.isCreator(dest))
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_ALREADY_CONTRIBUTOR, "");
+        //verifico che il destinatario non sia il creatore del documento (in tal caso e' gia' collaboratore)
+        if(doc.isCreator(dest))
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_ALREADY_CONTRIBUTOR, "");
 
-            //utente e' il creatore del documento e dest non e' suo creatore
-            //verifico che destinatario non sia l'utente stesso
-            if(username.equals(dest))
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_IS_DEST, "");
+        //verifico che il destinatario non sia gia' collaboratore del documento (no MUTUA ESCLUSIONE perche'
+        // nessun altro lo potra' inserire tra i collaboratori, perche' io sono creatore)
+        if(doc.checkIfUserIsModifier(dest))
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_ALREADY_CONTRIBUTOR, "");
 
-            //verifico che il destinatario non sia gia' collaboratore del documento
-            if(doc.checkIfUserIsModifier(dest))
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DEST_ALREADY_CONTRIBUTOR, "");
+        //creo stringa da inviargli come notifica di invito
+        String invite = String.format("[%s] >> Sei stato invitato da |%s| a collaborare al documento " +
+                "|%s|", dest, username, document);
 
-            //destinatario non e' collaboratore del documento
-            //inserisco il destinatario come collaboratore del documento
-            doc.addUser(dest);
+        //verifico se destinatario e' online, per differenziare come comportarmi:
+        //1. se e' online => gli notifico immediatamente invito
+        //2. se e' offline => inserisco invito nell'insieme degli inviti pendenti e appena fa il login glielo
+        //                      faccio sapere
+        SocketChannel destSocket = this.serverDataStructures.getSocketChannelFromUsername(dest);
 
-            //verifico se destinatario e' online, per differenziare come comportarmi:
-            //1. se e' online => gli notifico immediatamente invito
-            //2. se e' offline => inserisco invito nell'insieme degli inviti pendenti e appena fa il login glielo
-            //                      faccio sapere
-            boolean online = this.serverDataStructures.checkIfUserIsOnline(dest);
-            if(online){  //destinatario e' connesso
-                receiver.addSetLiveDocs(document);  //inserisco invito nel suo insieme di inviti online
+        if(destSocket == null){  //dest si e' disconesso
+            receiver.addSetPendingDocs(invite);   //inserisco invito nell'insieme dei pendenti
+        }
+        else{  //dest e' connesso
+            //recupero canale di invio del destinatario
+            SocketChannel destInvitesChannel = this.serverDataStructures.searchHashInvites(destSocket);
+
+            if(destInvitesChannel == null){ //dest si e' disconesso
+                receiver.addSetPendingDocs(invite);   //inserisco invito nell'insieme dei pendenti
             }
-            else{  //destinatario e' offline
-                receiver.addSetPendingDocs(document); //inserisco invito nel suo insieme di inviti offline
+            //creo nuova istanza di ServerMessageManagement per mandargli msg
+            ServerMessageManagement smmForDest = new ServerMessageManagement(destInvitesChannel);
+
+            //acquisisco mutua esclusione sul canale di invio degli inviti dell'utente e gli invio l'invito
+            synchronized (receiver.getLockInvitesSocket()){
+                //provo ad inviargli invito
+                FunctionOutcome check = smmForDest.writeResponse(ServerResponse.OP_ONLINE_INVITE_ADVERTISEMENT, invite);
+
+                if(check == FunctionOutcome.FAILURE) //invio fallito (forse Client si e' disconess)
+                    receiver.addSetPendingDocs(invite);   //inserisco invito nell'insieme dei pendenti
+                else{ //invio invito ha avuto successo
+                    //inserisco il destinatario come collaboratore del documento
+                    //inserisco documento nell'insieme dei documenti modificabili dal destinatario
+                    this.serverDataStructures.validateUserAsModifier(dest, document, false);
+
+                }
             }
         }
 
@@ -294,7 +392,7 @@ public class TuringTask {
      */
     private FunctionOutcome sendSection(String document, int i){
 
-        //recupero cartella dedicata alla memorizzazione dei files dell'utente
+        //recupero cartella dedicata alla memorizzazione dei files
         String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory();
 
         //recupero path della cartella/documento
@@ -343,8 +441,6 @@ public class TuringTask {
      *         OP_USER_NOT_ONLINE se l'utente che richiede operazione non e' connesso
      *         OP_OP_DOCUMENT_NOT_EXIST se il documento non esiste (non rientra nella lista dei documenti creati /
      *          condivisi con l'utente)
-     *           @TODO nel client verificare prima se download di qualche sezione (CHE DEVO NOTIFICARE AL CLIENT) non e'
-     *           gia avvenuto (evito richiesta)
      */
     public FunctionOutcome showDocumentTask(String document){
         //verifico se utente e' connesso
@@ -359,48 +455,62 @@ public class TuringTask {
         //2. controllo che utente abbia permessi per visualizzarlo (sia suo creatore/collaboratore)
         //3.invio contentuo del file all'utente
 
-        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
-        synchronized(this.serverDataStructures.getLockHash()){
-            //controllo se documento esiste
-            Document doc = this.serverDataStructures.getDocumentFromHash(document);
+        //controllo se documento esiste
+        Document doc = this.serverDataStructures.getDocumentFromHash(document);
 
-            if(doc == null) //documento non esiste
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+        if(doc == null) //documento non esiste
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
 
-            //documento esiste
-            //verifico se utente ha i permessi per visualizzarlo
-
-            if(!doc.isCreator(username)){ //utente non e' creatore
-                //verifico se utente e' collaboratore
-                if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
-                    return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
-                }
-            }
-
-            //utente e creatore/collaboratore del documento => lo puo' visualizzare
-            //recupero numero sezioni del documento
-            int numSections = doc.getNumberSections();
-
-            //invio numero delle sezioni al Client (cosi sa quanto deve attendere per leggere i vari files)
-            String body = String.valueOf(numSections);
-            FunctionOutcome check =  this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, body);
-
-            if(check == FunctionOutcome.FAILURE)
-                return FunctionOutcome.FAILURE; //invio numero sezioni fallita
-
-            //invio numero sezioni/files andato a buon fine
-            //itero sulle sezioni
-            for(int i = 1; i <= numSections; i++){
-
-                //provo ad inviare dimensione del file/sezione e contenuto del file/sezione al Client
-                check = sendSection(document, i);
-
-                if(check == FunctionOutcome.FAILURE){
-                    return FunctionOutcome.FAILURE; //invio dim.sezione / sezione fallito
-                }
+        //documento esiste
+        //verifico se utente ha i permessi per visualizzarlo
+        if(!doc.isCreator(username)){ //utente non e' creatore
+            //verifico se utente e' collaboratore
+            if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
             }
         }
-        return FunctionOutcome.SUCCESS; //segnalo al Worker che invio di tutte le sezioni ha avuto successo
+
+        //utente e creatore/collaboratore del documento => lo puo' visualizzare
+        //recupero numero sezioni del documento
+        int numSections = doc.getNumberSections();
+
+        //invio numero delle sezioni al Client (cosi sa quanto deve attendere per leggere i vari files)
+        String body = String.valueOf(numSections);
+        FunctionOutcome check =  this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, body);
+
+
+        if(check == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE; //invio numero sezioni fallita
+
+        //invio numero sezioni/files andato a buon fine
+        //itero sulle sezioni
+        for(int i = 1; i <= numSections; i++){
+
+            //provo ad inviare dimensione del file/sezione e contenuto del file/sezione al Client
+            check = sendSection(document, i);
+
+            if(check == FunctionOutcome.FAILURE){
+                return FunctionOutcome.FAILURE; //invio dim.sezione / sezione fallito
+            }
+        }
+
+        //reperisco informazioni su chi sta editando il documento
+        StringBuilder builder = new StringBuilder();
+
+        for(int i = 1; i <= numSections; i++){
+            String userWhoIsModifingSection = doc.checkIfSectionIsLocked(i);
+            if(!userWhoIsModifingSection.isEmpty()){
+                builder.append("\n");
+                builder.append(String.format("        |%s| sta modificando la sezione |%s|", userWhoIsModifingSection, i));
+            }
+        }
+
+        String msg = builder.toString();
+
+        if(msg.isEmpty())
+            msg = String.format("Nessuno sta editando il documento |%s| in questo momento", document);
+
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_WHO_IS_EDITING, msg);
     }
 
     /**
@@ -417,7 +527,6 @@ public class TuringTask {
      *          condivisi con l'utente)
      *         OP_SECTION_NOT_EXIST se la sezione richiesta per la visualizzazione non esiste (non rientra nel range
      *          delle sezioni associate al documento fornito)
-     *          @TODO nel client verificare prima se download di tale sezione non e' gia avvenuto (evito richiesta)
      */
     public FunctionOutcome showSectionTask(String document, int numSection){
         //verifico se utente e' connesso
@@ -433,41 +542,53 @@ public class TuringTask {
         //3. controllo che utente abbia permessi per visualizzarla (sia  creatore/collaboratore del documento)
         //3. invio contentuo del file all'utente
 
-        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
-        synchronized(this.serverDataStructures.getLockHash()){
-            //controllo se documento esiste
-            Document doc = this.serverDataStructures.getDocumentFromHash(document);
+        //controllo se documento esiste
+        Document doc = this.serverDataStructures.getDocumentFromHash(document);
 
-            if(doc == null) //documento non esiste
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+        if(doc == null) //documento non esiste
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
 
-            //documento esiste
-            //verifico se utente ha i permessi per visualizzarlo
-
-            if(!doc.isCreator(username)){ //utente non e' creatore
-                //verifico se utente e' collaboratore
-                if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
-                    return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
-                }
+        //documento esiste
+        //verifico se utente ha i permessi per visualizzarlo
+        if(!doc.isCreator(username)){ //utente non e' creatore
+            //verifico se utente e' collaboratore
+            if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
             }
-
-            //utente e creatore/collaboratore del documento => lo puo' visualizzare
-            //recupero numero sezioni del documento, per verificare che la sezione esisti
-            int numSections = doc.getNumberSections();
-
-            if(numSection < 1 || numSection > numSections){ //sezione non fa parte del documento
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_NOT_EXIST, "");
-            }
-
-            //invio buon esito lettura richiesta al Client
-            FunctionOutcome check = this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
-
-            if(check == FunctionOutcome.FAILURE)
-                return FunctionOutcome.FAILURE; //problemi con invio acknowledgement al Client
-
-            //provo ad inviare dimensione del file/sezione e contenuto del file/sezione al Client
-            return sendSection(document, numSection);
         }
+
+        //utente e creatore/collaboratore del documento => lo puo' visualizzare
+        //recupero numero sezioni del documento, per verificare che la sezione esisti
+        int numSections = doc.getNumberSections();
+
+        if(numSection < 1 || numSection > numSections){ //sezione non fa parte del documento
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_NOT_EXIST, "");
+        }
+
+        //invio buon esito lettura richiesta al Client
+        FunctionOutcome check = this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+
+        if(check == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE; //problemi con invio acknowledgement al Client
+
+        //provo ad inviare dimensione del file/sezione e contenuto del file/sezione al Client
+        check = sendSection(document, numSection);
+
+        if(check == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE; //segnalo errore al Worker
+
+        //reperisco informazioni su chi sta editando il documento
+        String msg;
+        String userWhoIsModifingSection = doc.checkIfSectionIsLocked(numSection);
+
+        if(userWhoIsModifingSection.isEmpty()){
+            msg = String.format("Nessuno sta editando la sezione |%s| in questo momento", numSection);
+        }
+        else{
+            msg = String.format("|%s| sta modificando la sezione |%s| in questo momento", userWhoIsModifingSection, numSection);
+        }
+
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_WHO_IS_EDITING, msg);
     }
 
     /**
@@ -494,39 +615,35 @@ public class TuringTask {
 
         StringBuilder body = new StringBuilder(); //BODY della risposta da mandare al Client
 
-        // acceddo tramite synchronized all'oggetto che garantisce sincronizzazione tra ht utenti e ht documenti
-        synchronized(this.serverDataStructures.getLockHash()) {
+        //recupero istanza dell'utente
+        User user = this.serverDataStructures.getUserFromHash(username);
 
-            //recupero istanza dell'utente
-            User user = this.serverDataStructures.getUserFromHash(username);
+        Set<String> userDocs = user.getSetDocs();
 
-            Set<String> userDocs = user.getSetDocs();
+        for(String document: userDocs){
 
-            for(String document: userDocs){
+            body.append("\n");
+            body.append(document);
+            body.append(":\n");
 
-                body.append("\n");
-                body.append(document);
-                body.append(":\n");
+            //recupero istanza del documento
+            Document doc = this.serverDataStructures.getDocumentFromHash(document);
 
-                //recupero istanza del documento
-                Document doc = this.serverDataStructures.getDocumentFromHash(document);
+            //recupero creatore del documento
+            String creator = doc.getCreatorName();
 
-                //recupero creatore del documento
-                String creator = doc.getCreatorName();
+            body.append("    creatore : ");
+            body.append(creator);
+            body.append("\n");
+            body.append("    collaboratori : ");
 
-                body.append("    creatore : ");
-                body.append(creator);
-                body.append("\n");
-                body.append("    collaboratori : ");
+            //recupero altri collaboratori
+            LinkedHashSet<String> modifiers = doc.getModifiers();
 
-                //recupero altri collaboratori
-                LinkedHashSet<String> modifiers = doc.getModifiers();
-
-                //itero sui collaboratori del documento
-                for(String modifier: modifiers){
-                    body.append(modifier);
-                    body.append(" ");
-                }
+            //itero sui collaboratori del documento
+            for(String modifier: modifiers){
+                body.append(modifier);
+                body.append(" ");
             }
         }
 
@@ -543,12 +660,129 @@ public class TuringTask {
      *         OP_USER_NOT_ALLOWED_TO_EDIT se l'utente non e' collaboratore/creatore del documento
      *         OP_SECTION_ALREADY_IN_EDITING_MODE se un altro utente sta gia' editando la sezione
      *         OP_USER_NOT_ONLINE se l'utente che richiede operazione non e' connesso
-     *         OP_USER_NOT_REGISTERED se l'utente che richiede operazione non e' registrato
      *         OP_OP_DOCUMENT_NOT_EXIST se il documento non esiste
      *         OP_SECTION_NOT_EXIST se la sezione non esiste
      */
     public FunctionOutcome editTask(String document, int numSection){
-        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+        //verifico se utente e' connesso
+        String username = this.serverDataStructures.checkIfSocketChannelIsOnline(client);
+
+        if(username == null)
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
+        //1. verifico che documento esista
+        //2. verifico che sezione faccia parte del documento richiesto
+        //3. verifico se l'utente ha il permesso per editare sezione (e' creatore/collaboratore documento)
+        //3. verifico che sezione non sia gia' in fase di editing da qualcun'altro
+        //4. acuisisco mutua esclusione sulla sezione
+
+        //controllo se documento esiste
+        Document doc = this.serverDataStructures.getDocumentFromHash(document);
+
+        if(doc == null) //documento non esiste
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+
+        //documento esiste
+        //verifico se utente ha i permessi per visualizzarlo
+        if(!doc.isCreator(username)){ //utente non e' creatore
+            //verifico se utente e' collaboratore
+            if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
+            }
+        }
+
+        //utente e creatore/collaboratore del documento => lo puo' visualizzare
+        //recupero numero sezioni del documento, per verificare che la sezione esisti
+        int numSections = doc.getNumberSections();
+
+        if(numSection < 1 || numSection > numSections){ //sezione non fa parte del documento
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_NOT_EXIST, "");
+        }
+
+        //verifico che utente non stia gia' editando una sezione di questo documento
+        //NON MI INTERESSA CONSISTENZA (devo solo trovare slots eventualmente occupati dal clientSocket)
+
+        String[] sectionsLockArray = doc.getSectionsLockArray();
+        for(int i = 0; i < sectionsLockArray.length; i++){
+            if(sectionsLockArray[i].equals(username)){
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_ALREADY_EDIT_BY_USER, "");
+            }
+        }
+
+        //documento non e' editato dall'utente
+        //provo ad acquisire la mutua esclusione sulla sezione che utente vuole editare
+        String lock = doc.lockSection(numSection, username);
+
+        if(!lock.equals(username)) //sezione acquisita gia' da qualcunaltro => invio nome di chi l'ha gia' acquisita
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_ALREADY_IN_EDITING_MODE, lock);
+
+        //sezione acquisita
+        FunctionOutcome check = this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+
+        if(check == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE; //problemi con invio acknowledgement al Client
+
+        //provo ad inviare dimensione del file/sezione e contenuto del file/sezione al Client
+        check = sendSection(document, numSection);
+
+        if(check == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE; //segnalo errore al Worker
+
+        //se invio sezione ha avuto successo, devo inviare al Client l'indirizzo di multicast del documento
+        //per consentirgli di attivare chatListener
+        String multicastInd = doc.getChatInd();
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_MULTICAST_IND_IS_COMING, multicastInd);
+    }
+
+    /**
+     * Funzione privata chiamata da "endEditTask" che si occupa di scrivere in MUTUA ESCLUSIONE
+     * l'aggiornamento mandato dal Client sulla sezione/file
+     * @param document documento di cui la sezione in cui salvare le modifiche
+     * @param numSection sezione in cui salvare le modifiche
+     * @return SUCCESS sezione aggiornata con successo
+     *        FAILURE impossibile aggiornare la sezione
+     */
+    private FunctionOutcome updateSection(String document, int numSection){
+        //recupero cartella dedicata alla memorizzazione dei files
+        String userSaveDirectoryPath = this.configurationsManagement.getServerSaveDocumentsDirectory();
+
+        //recupero path della cartella/documento
+        String userDocumentPath = userSaveDirectoryPath + document +  "/"; //documento e' una cartella
+
+        //ricavo nome del file del file/sezione
+        String userSectionFile = userDocumentPath + numSection + ".txt";
+
+        //ricavo contentuo della sezione aggiornata
+        String content = serverMessageManagement.getBodyMessage();
+
+        //apro un FileChannel per leggere il contenuto del file/sezione
+        RandomAccessFile randomAccessFile = null;
+        try {
+            randomAccessFile = new RandomAccessFile(userSectionFile, "rw");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            System.exit(-1);
+        }
+
+        FileChannel outChannel = randomAccessFile.getChannel(); //ricavo channel del file
+
+        //FileLock => mutua esclusione sul file con JavaNIO
+        try (outChannel; FileLock fileLock = outChannel.lock()) {
+
+            FileManagement fileManagement = new FileManagement();
+            fileManagement.writeFile(userSectionFile, content);
+
+            //rilascio mutua esclusione sul file/sezione
+            fileLock.release();
+
+        } catch (OverlappingFileLockException | IOException ex) {
+            System.err.println("Exception occured while trying to get a lock on File... " + ex.getMessage());
+            System.exit(-1);
+        }
+
+        return FunctionOutcome.SUCCESS;
     }
 
     /**
@@ -565,14 +799,172 @@ public class TuringTask {
      *         OP_SECTION_NOT_EXIST se la sezione non esiste
      */
     public FunctionOutcome endEditTask(String document, int numSection){
+        //verifico se utente e' connesso
+        String username = this.serverDataStructures.checkIfSocketChannelIsOnline(client);
+
+        if(username == null)
+            //utente non e' connesso
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_NOT_ONLINE, "");
+
+        //utente connesso => tramite verifica connessione ho recuperato il suo nome utente
+        //1. verifico che documento esista
+        //2. verifico che sezione faccia parte del documento richiesto
+        //3. verifico se l'utente ha il permesso per editare sezione (e' creatore/collaboratore documento)
+        //3. verifico che sezione non sia gia' in fase di editing da qualcun'altro
+        //4. acuisisco mutua esclusione sulla sezione
+
+        //controllo se documento esiste
+        Document doc = this.serverDataStructures.getDocumentFromHash(document);
+
+        if(doc == null) //documento non esiste
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+
+        //documento esiste
+        //verifico se utente ha i permessi per visualizzarlo
+        if(!doc.isCreator(username)){ //utente non e' creatore
+            //verifico se utente e' collaboratore
+            if(!doc.checkIfUserIsModifier(username)){ //utente non e' collaboratore
+                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_PERMISSION_DENIED, "");
+            }
+        }
+
+        //utente e creatore/collaboratore del documento => lo puo' visualizzare
+        //recupero numero sezioni del documento, per verificare che la sezione esisti
+        int numSections = doc.getNumberSections();
+
+        if(numSection < 1 || numSection > numSections){ //sezione non fa parte del documento
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_NOT_EXIST, "");
+        }
+
+        String locked = doc.checkIfSectionIsLocked(numSection);
+
+        if(locked.isEmpty()) //sezione non e' in editing mode
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_NOT_IN_EDITING_MODE, "");
+        else if(!locked.equals(username)) //sezione editata da qualcuno diverso dall'utente => invio chi la sta editando
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_EDITED_BY_SOMEONE_ELSE, locked);
+
+        //invio buon esito al Client per segnalargli di mandarmi contenuto aggiornato
+        FunctionOutcome check =  this.serverMessageManagement.writeResponse(ServerResponse.OP_SERVER_READY_FOR_UPDATE, "");
+
+        if(check == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE; //segnalo al Worker errore
+
+        //attendo contenuto aggiornato dal Client
+        //leggo richiesta del Client
+        FunctionOutcome readRequest = this.serverMessageManagement.readRequest();
+
+        if(readRequest == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE;  //segnalo al Worker errore
+
+        //nel BODY della richiesta e' contenuto l'aggiornamento della sezione
+        //aggiorno sezione con contenuto mandato dal Client, prima di rilasciare la mutua esclusione sulla sezione
+        check = updateSection(document, numSection);
+
+        //impossibile aggiornare la sezione per qualche problema
+        if(check == FunctionOutcome.FAILURE)
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_IMPOSSIBLE_TO_UPDATE, "");
+
+        //sezione aggiornata
+        //rilascio la mutua esclusione
+        ServerResponse serverResponse = doc.unlockSection(numSection, username);
+
+        if(serverResponse == ServerResponse.OP_SECTION_NOT_IN_EDITING_MODE)
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_NOT_IN_EDITING_MODE, "");
+        else if(serverResponse == ServerResponse.OP_SECTION_EDITED_BY_SOMEONE_ELSE)
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_EDITED_BY_SOMEONE_ELSE, "");
+
+        //sezione rilasciata
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
-    public FunctionOutcome sendTask(String message){
+    /**
+     * Funzione che si occupa di inviare il messaggio dell'utente sulla chat
+     * @param document nome del documento del quale reperire la chat
+     * @return OP_OK se la modifica della sezione del documento ha avuto successo
+     *         OP_USER_NOT_ONLINE se l'utente che richiede operazione non e' connesso
+     *         OP_OP_DOCUMENT_NOT_EXIST se il documento non esiste
+     */
+    public FunctionOutcome sendTask(String document){
+
+        //controllo se documento esiste
+        Document doc = this.serverDataStructures.getDocumentFromHash(document);
+
+        if(doc == null) //documento non esiste
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_NOT_EXIST, "");
+
+        //recupero indirizzo di multicat del documento
+        String multicastInd = doc.getChatInd();
+
+        FunctionOutcome check = this.serverMessageManagement.readRequest();
+
+        if(check == FunctionOutcome.FAILURE)
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SEND_IMPOSSIBLE_TO_READ_MESSAGE, "");
+
+        //recupero messaggio da inviare sulla chat
+        String message = this.serverMessageManagement.getBodyMessage();
+
+        try {
+            InetAddress group = InetAddress.getByName(multicastInd);
+            MulticastSocket chatSocket = new MulticastSocket(this.configurationsManagement.getMulticastPort());
+
+            //ricavo byte del messaggio specificato
+            byte[] buf = message.getBytes();
+            //creo DatagramPacket corrispondente
+            DatagramPacket packet = new DatagramPacket(buf, buf.length, group, this.configurationsManagement.getMulticastPort());
+
+            //invio sul Socket multicast il messaggio (inserito in un datagramPacket)
+            chatSocket.send(packet);
+
+        } catch (IOException e) {
+            //e.printStackTrace();
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_SEND_FAILURE, "");
+        }
+
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 
-    public FunctionOutcome receiveTask(){
+    public FunctionOutcome iAmClientSocketTask(){
+        //inserisco nome del Socket relativo al SocketChannel dell'utente connesso;
+        String hostAndPort;
+        try {
+            hostAndPort = this.client.getRemoteAddress().toString();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return FunctionOutcome.FAILURE; //notifico al Worker fallimento inserimento
+        }
+
+        //inserisco associazione tra nome del Socket e clientSocketChannel nella ht corrispondente
+        //(questo mi consete di individuare SocketChannel da utilizzare per inviare inviti al Client,
+        // quando tale SocketChannel si connetera' al Server)
+        this.serverDataStructures.insertHashSocketNames(hostAndPort, this.client);
+
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
+    }
+
+    /**
+     * Funzione che rileva che un SocketChannel connesso al Server deve essere utilizzato come
+     * channel per inviare gli inviti alle collaborazioni al Client specificato come argomento
+     * @param hostAndPort stringa che contiene nome del Socket del Client di cui questo SocketChannel e' canale di invio
+     * @return SUCCESS se SochetChannel di invio e' stato rilevato con successo
+     *         FAILURE se subentrano errori nel rilevamento del SocketChannel di invio
+     */
+    public FunctionOutcome iAmAnInvitesSocketTask(String hostAndPort){
+
+        this.serverDataStructures.printSocketNames();
+
+        //verifico quale clientSocketChannel corrisponde al nome del Socket del Client
+        SocketChannel clientSocketChannel = this.serverDataStructures.searchHashSocketNames(hostAndPort);
+
+        if(clientSocketChannel == null){
+            System.err.println("[ERR] >> Impossibile che non esista clientSocketChannel nella ht dei nomi dei sockets" +
+                    "relativo al nome Socket = " + hostAndPort);
+            System.exit(-1);
+        }
+
+        //ho reperito clientSocketChannel di cui questo SocketChannel e' canale di invio => inserisco associazione
+        //tra i due nella ht corrispondente
+        this.serverDataStructures.insertHashInvites(clientSocketChannel, this.client);
+
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
 }

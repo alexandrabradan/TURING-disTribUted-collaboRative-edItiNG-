@@ -58,9 +58,9 @@ public class TuringRegistrationRMI implements TuringRegistrationRMIInterface {
      *         OP_USER_MUST_LOGOUT se il Client che richiede la registrazione e' connesso (per effettuare una
      *         registrazione bisogna essere sloggati)
      */
-    public synchronized ServerResponse registerTask(String username, String password) throws RemoteException {
+    public synchronized ServerResponse registerTask(String username, String password){
 
-        //verifico se username supera numero minimp caratteri consentito
+        //verifico se username supera numero minim0 caratteri consentito
         FunctionOutcome check = checkMinNumCharactersArg(username);
         if(check == FunctionOutcome.SUCCESS){ //numero caratteri lecito
             //verifico se username supera numero massimo caratteri consentito
@@ -82,17 +82,7 @@ public class TuringRegistrationRMI implements TuringRegistrationRMIInterface {
                             if(online)
                                 return ServerResponse.OP_USER_MUST_LOGOUT; //utente connesso
 
-                            //utente e' disconesso => verifico se username e' gia' stato preso da qualche altro utente
-                            boolean alreadyTaken = this.serverDataStructures.checkIfUserIsRegister(username);
-                            if(alreadyTaken)
-                                return ServerResponse.OP_USERNAME_ALREADY_TAKEN; //username gia' in uso
-
-                            //username non e' stato preso
-                            //creo istanza dell'utente da registrare e da inserire nella HashTable
-                            User newUser = new User(username, password);
-                            this.serverDataStructures.insertHashUser(username, newUser);
-
-                            return ServerResponse.OP_OK; //utente registrato con successo
+                            return this.serverDataStructures.registerUser(username, password);
                         }
                         return ServerResponse.OP_PASSWORD_TOO_LONG; //password troppo lunga
                     }
@@ -103,7 +93,5 @@ public class TuringRegistrationRMI implements TuringRegistrationRMIInterface {
             else return ServerResponse.OP_USERNAME_TOO_LONG; //username troppo lungo
         }
         else return ServerResponse.OP_USERNAME_TOO_SHORT; //username troppo corto
-
-        //@TODO incapsulare risposta in un msg da inviare al Client
     }
 }
