@@ -3,12 +3,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class ServerShutdownHook extends Thread{
     private Thread listenerThreadID;
     private ThreadPoolExecutor threadPoolExecutor;
-    private Thread turingServerThread;
 
-    public ServerShutdownHook(Thread listenerThreadID, ThreadPoolExecutor threadPoolExecutor, Thread turingServerThread){
+    public ServerShutdownHook(Thread listenerThreadID, ThreadPoolExecutor threadPoolExecutor){
         this.listenerThreadID = listenerThreadID;
         this.threadPoolExecutor = threadPoolExecutor;
-        this.turingServerThread = turingServerThread;
     }
 
     /**
@@ -30,20 +28,20 @@ public class ServerShutdownHook extends Thread{
 
         System.out.println("[Turing] >> ThreadPool terminato");
 
-        //faccio terminare il Listener Thread
+        //interrompo TuringListener (se non gia' interroto)
         this.listenerThreadID.interrupt();
 
-        System.out.println("[Turing] >> Listener Thread terminato");
-
         try {
-            turingServerThread.join();
+            this.listenerThreadID.join();
         } catch (InterruptedException e) {
             e.printStackTrace();
             System.exit(-1);
         }
 
-        System.out.println("[Turing] >> Turing Server Thread terminato");
-
+        System.out.println("[Turing] >> Listener Thread terminato");
         System.out.println("[Turing] >> Fine fase di  GRACEFUL SHUTDOWN con successo");
+
+        System.out.println();
+        System.out.println("[Turing] >> SERVER TURING (disTribUted collaboRative edItiNG) TERMINATO");
     }
 }

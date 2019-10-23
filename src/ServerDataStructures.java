@@ -1,4 +1,3 @@
-import java.net.InetAddress;
 import java.nio.channels.SocketChannel;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -84,7 +83,7 @@ public class ServerDataStructures {
      * @return chiave associata al valore passato come argomento
      *          null se valore non esiste
      */
-    public synchronized SocketChannel getSocketChannelFromUsername(String username){
+    public SocketChannel getSocketChannelFromUsername(String username){
         return getKey(this.online_users, username);
     }
 
@@ -116,10 +115,16 @@ public class ServerDataStructures {
      * Funzione che connette un utente (lo inserisce negli utenti online)
      * @param client socketchannel dell'utente di cui bisogna cambiare lo stato
      * @param username utente di cui cambiare lo stato
+     * @return  SUCCESS se e' stato possibile connettere l'utente
+     *         FAILURE se l'utente era gia' connesso
      */
-    public void putToOnlineUsers(SocketChannel client, String username) {
+    public FunctionOutcome putToOnlineUsers(SocketChannel client, String username) {
         //aggiungo SocketChannel dell'utente e l'utente nella ht degli utenti online
-        online_users.put(client, username);
+        String usernameToCheck = online_users.put(client, username);
+
+        if(usernameToCheck == null)
+            return FunctionOutcome.SUCCESS; //utente connesso (non era presente)
+        else return FunctionOutcome.FAILURE; //utente gia' connesso
     }
 
     /**
@@ -191,21 +196,16 @@ public class ServerDataStructures {
         }
     }
 
-    public synchronized ServerResponse registerNewUser(String username){
-        return ServerResponse.OP_OK;
-    }
-
     /**
-     * Funzione che permette di creare un nuovo documento in MUTUA ESCLUSIONE [metodo e' synchronized]
-     * per garantire l'univocita' dell'assegnazione del nome documento (solo un Worker alla volta accede a questo
-     * metodo => crea un nuovo documento)
+     * Funzione che permette di creare un nuovo documento in MUTUA ESCLUSIONE, grazie alle lock implicite della
+     * ConcurrentHashMap dei documenti
      * @param username nome dell'utente che vuole creare nuovo documento
      * @param document nome del documento
      * @param numSections numero sezioni del documento
      * @return OP_OK se il documento e le relative sezioni sono state create con successo
      *         OP_DOCUMENT_ALREADY_EXIST se il nuovo documento che si vuole creare esiste gia'
      */
-    public synchronized ServerResponse registerNewDocument(String username, String document, int numSections){
+    public ServerResponse registerNewDocument(String username, String document, int numSections){
         //verifico se documento e' gia' esistente (controllo presenza documento all'interno della ht dei documenti)
         boolean exist = checkIfDocumentExist(document);
 
@@ -224,7 +224,10 @@ public class ServerDataStructures {
         Document doc = new Document(document, username, numSections, chatInd);
 
         //inserisco istanza del documento nella HashTable dei documenti
-        insertHashDocument(document, doc);
+        FunctionOutcome check = insertHashDocument(document, doc);
+
+        if(check == FunctionOutcome.FAILURE)
+            return ServerResponse.OP_DOCUMENT_ALREADY_EXIST; //documento gia' esistente
 
         //inserisco documento nell'insieme dei documenti che utente puo' modificare
         validateUserAsModifier(username, document, true);
@@ -232,7 +235,17 @@ public class ServerDataStructures {
         return ServerResponse.OP_OK;
     }
 
-    public synchronized ServerResponse registerUser(String username, String password){
+    /**
+     * Funzione che garantisce la mutua esclusione dell'inserimento di un username all'interno della ht_users, grazie
+     * al fatto che questa e' una ConcurrentHashMap. Questoe' necessario perche' l'accesso da remoto tramite RMI al
+     * metodo di registrazione da parte di un utente, creare lato Server un thread. Se piu' utenti si registrano
+     * nello stesso momento e' necessario sincronizzare le registrazioni per avere l'univocacita' dei nomi
+     * @param username nome utente
+     * @param password password al servizio
+     * @return SUCCESS se e' stato possibile registrare l'utente
+     *         FAILURE altrimenti
+     */
+    public  ServerResponse registerUser(String username, String password){
         //utente e' disconesso => verifico se username e' gia' stato preso da qualche altro utente
         boolean alreadyTaken = checkIfUserIsRegister(username);
         if(alreadyTaken)
@@ -241,7 +254,11 @@ public class ServerDataStructures {
         //username non e' stato preso
         //creo istanza dell'utente da registrare e da inserire nella HashTable
         User newUser = new User(username, password);
-        insertHashUser(username, newUser);
+        FunctionOutcome check = insertHashUser(username, newUser);
+
+        if(check == FunctionOutcome.FAILURE)
+            return ServerResponse.OP_USERNAME_ALREADY_TAKEN; //username gia' in uso
+
         return ServerResponse.OP_OK;
     }
 
@@ -271,9 +288,15 @@ public class ServerDataStructures {
      * Funzione che inserisce un nuovo utente nella Tabella Hash degli utente
      * @param username nome utente (CHIAVE)
      * @param usr istanza dell'utente (VALORE)
+     * @return SUCCESS se l'inserimento ha avuto successo
+     *         FAILURE se username era gia' in uso
      */
-    public void insertHashUser(String username, User usr) {
-        this.hash_users.put(username, usr);
+    public FunctionOutcome insertHashUser(String username, User usr) {
+
+        User userToCheck = this.hash_users.put(username, usr);
+        if(userToCheck == null)
+            return FunctionOutcome.SUCCESS; //username inserito con successo (non era presente)
+        else return FunctionOutcome.FAILURE; //username gia' presente
     }
 
     /**
@@ -311,9 +334,15 @@ public class ServerDataStructures {
      * Funzione che inserisce un nuovo documento nella Tabella Hash dei documenti
      * @param document nome documento (CHIAVE)
      * @param doc istanza del docuemnto (VALORE)
+     * @return  SUCCESS se inserimento e' andato a buon fine
+     *          FAILURE  se documento esisteva gia'
      */
-    public void insertHashDocument(String document, Document doc) {
-        this.hash_documents.put(document, doc);
+    public FunctionOutcome insertHashDocument(String document, Document doc) {
+
+        Document valueToCheck = this.hash_documents.put(document, doc);
+        if(valueToCheck == null)
+            return FunctionOutcome.SUCCESS; //documento inserito (non esisteva)
+        else return FunctionOutcome.FAILURE; //documento non inserito (esisteva gia')
     }
 
     /**

@@ -174,7 +174,7 @@ public class ClientMessageManagement {
         //ricevo HEADER contenente:
         //tipo di risposta => e' ENUM => intero => codificato con 4 bytes
         // dim. body risposta => intero => codificato con 4 bytes
-       this.header = ByteBuffer.allocate(8);
+        this.header = ByteBuffer.allocate(8);
 
         this.header.clear();  //modalita' scrittura + sovrascrittura buffer (position=0, limit=capacity)
 
@@ -407,7 +407,7 @@ public class ClientMessageManagement {
                             //recupero messaggio del Client
                             String whoIsEditing = getBodyMessage();
                             if(!whoIsEditing.equals(String.format("Nessuno sta editando il documento |%s| in questo momento",
-                                                                                                        currentArg1))){
+                                    currentArg1))){
                                 System.out.println(String.format("[%s] Documento |%s| ediatato da: ", currentUser, currentArg1));
                                 System.out.println("      " + whoIsEditing);
                             }
@@ -429,8 +429,8 @@ public class ClientMessageManagement {
 
                         if(check == FunctionOutcome.FAILURE){
                             System.out.println(String.format("[%s] >> Impossibile scaricare la sezione |%s| del " +
-                                    "documento |%s|. Download della sezione fallito", currentUser,
-                                                                     Integer.parseInt(currentArg2),  currentArg1));
+                                            "documento |%s|. Download della sezione fallito", currentUser,
+                                    Integer.parseInt(currentArg2),  currentArg1));
                             return FunctionOutcome.FAILURE;
                         }
                         else{
@@ -486,7 +486,7 @@ public class ClientMessageManagement {
 
                             if(check == FunctionOutcome.FAILURE){
                                 System.err.println(String.format("[%s] >> Impossibile leggere indirizzo di multicast del" +
-                                                " documento per create chatListener.", currentUser));
+                                        " documento per create chatListener.", currentUser));
                                 return FunctionOutcome.FAILURE;
                             }
 
@@ -568,18 +568,6 @@ public class ClientMessageManagement {
                         "esiste.", currentArg2, currentArg1));
                 break;
             }
-            case OP_DOCUMENT_TOO_SHORT:{
-                System.err.println(String.format("[ERR] >> Nome documento |%s| troppo corto.", currentArg1));
-                break;
-            }
-            case OP_DOCUMENT_TOO_LONG:{
-                System.err.println(String.format("[ERR] >> Nome documento |%s| troppo lungo.", currentArg1));
-                break;
-            }
-            case OP_SECTION_EXCEED_LIMIT:{
-                System.err.println(String.format("[ERR] >> Numero sezioni |%s| eccede il valore consentito.", currentArg2));
-                break;
-            }
             case OP_USER_ALREADY_ONLINE:{
                 System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", currentUser));
                 break;
@@ -599,7 +587,7 @@ public class ClientMessageManagement {
             }
             case OP_USER_IS_DEST:{
                 System.err.println(String.format("[ERR] >> Non puoi invitare te stesso a collaborare al documento |%s|.",
-                                                                                                        currentArg1));
+                        currentArg1));
                 break;
             }
             case OP_DEST_ALREADY_CONTRIBUTOR:{
@@ -657,6 +645,24 @@ public class ClientMessageManagement {
             }
             case OP_SEND_IMPOSSIBLE_TO_READ_MESSAGE:{
                 System.err.println("[ERR] >> Server incapacitato di leggere msg da inviare sulla chat.");
+                break;
+            }
+            case OP_USERNAME_INAVLID_CHARACTERS:{
+                System.err.println(String.format("[ERR] >> Username |%s| contiene caratteri speciali. Sceglierne" +
+                        " uno che non li contenga.", currentArg1));
+                break;
+            }
+            case OP_DOCUMENT_INAVLID_CHARACTERS:{
+                System.err.println(String.format("[ERR] >> Documento |%s| contiene caratteri speciali. Sceglierne" +
+                        " uno che non li contenga.", currentArg1));
+                break;
+            }
+            case OP_USER_MUST_LOGOUT:{
+                System.err.println("[ERR] >> Devi fare logout per poterti registrare con un altro username.");
+                break;
+            }
+            case OP_USERNAME_ALREADY_TAKEN:{
+                System.err.println(String.format("[ERR] Username |%s| gia' in uso.", currentArg1));
                 break;
             }
             default:

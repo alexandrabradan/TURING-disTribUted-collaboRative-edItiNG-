@@ -12,9 +12,6 @@ public class ServerConfigurationsManagement {
     private int RMIPort; //porta utilizzata per gli inviti
     private int multicastPort; //porta utilizzata per i gruppi di chat
     private int connectionTimeout; //tempo attesa multicast
-    private int maxNumSectionsPerDocument; //numero massimo di sezioni che un documento puo' avere
-    private int minNumCharactersArg; //numero minimo di caratteri che username/password/nome_documento possono avere
-    private int maxNumCharactersArg; //numero massimo di caratteri che username/password/nome_documento possono avere
     private int numWorkersInThreadPool; //numero di threads nel ThreadPool
     private String serverSaveDocumentsDirectory; //path della directory dove Server salva documenti dei Clients
 
@@ -30,9 +27,6 @@ public class ServerConfigurationsManagement {
         this.RMIPort = -1;
         this.multicastPort = -1;
         this.connectionTimeout = -1;
-        this.maxNumSectionsPerDocument = -1;
-        this.minNumCharactersArg = -1;
-        this.maxNumCharactersArg = -1;
         this.numWorkersInThreadPool = -1;
         this.serverSaveDocumentsDirectory = "";
     }
@@ -75,28 +69,6 @@ public class ServerConfigurationsManagement {
      */
     public int getConnectionTimeout(){
         return this.connectionTimeout;
-    }
-
-    /**
-     * Funzione che restituisce numero massimo di sezioni che un documento puo' avere
-     * @return numero massimo di sezioni che un documento puo' avere
-     */
-    public int getMaxNumSectionsPerDocument(){
-        return this.maxNumSectionsPerDocument;
-    }
-
-    /**
-     * Funzione che restituisce il minimo numero di caratteri che username/password/nome_documento possono avere
-     * @return numero minimo carateri che username/password/nome_documento possono avere
-     */
-    public int getMinNumCharactersArg(){return this.minNumCharactersArg;}
-
-    /**
-     * Funzione che restiruisce numero massimo di caratteri che username/password/nome_documento possono avere
-     * @return numero massimo di caratteri che username/password/nome_documento possono avere
-     */
-    public int getMaxNumCharactersArg(){
-        return this.maxNumCharactersArg;
     }
 
     /**
@@ -168,15 +140,6 @@ public class ServerConfigurationsManagement {
                        case "connectionTimeout":
                            this.connectionTimeout = Integer.parseInt(value);
                            break;
-                       case "maxNumSectionsPerDocument":
-                           this.maxNumSectionsPerDocument = Integer.parseInt(value);
-                           break;
-                       case "minNumCharactersArg":
-                           this.minNumCharactersArg = Integer.parseInt(value);
-                           break;
-                       case "maxNumCharactersArg":
-                           this.maxNumCharactersArg = Integer.parseInt(value);
-                           break;
                        case "numWorkersInThreadPool":
                            this.numWorkersInThreadPool = Integer.parseInt(value);
                            break;
@@ -230,18 +193,6 @@ public class ServerConfigurationsManagement {
             System.err.println("[ERR] >> connectionTimeout = " + this.connectionTimeout + " non valido");
             return FunctionOutcome.FAILURE;
         }
-        else if(this.maxNumSectionsPerDocument < 1){ //docuemnto deve avere almeno una sezione
-            System.err.println("[ERR] >> maxNumSectionsPerDocument = " + this.maxNumSectionsPerDocument + " non valido");
-            return FunctionOutcome.FAILURE;
-        }
-        else if(this.minNumCharactersArg < 1){ //argomenti devono avere almeno un carattere
-            System.err.println("[ERR] >> minNumCharactersArg = " + this.minNumCharactersArg + " non valido");
-            return FunctionOutcome.FAILURE;
-        }
-        else if(this.maxNumCharactersArg < 1){ //argomenti devono avere almeno un carattere
-            System.err.println("[ERR] >> maxNumCharactersArg = " + this.maxNumCharactersArg + " non valido");
-            return FunctionOutcome.FAILURE;
-        }
         else if(this.numWorkersInThreadPool < 0){
             System.err.println("[ERR] >> numWorkersInThreadPool = " + this.numWorkersInThreadPool + " non valido");
             return FunctionOutcome.FAILURE;
@@ -291,9 +242,6 @@ public class ServerConfigurationsManagement {
         System.out.println( "- Porta utilizzata per gli inviti = " + this.RMIPort);
         System.out.println( "- Porta utilizzata per gli indirizzi di multicast = " + this.multicastPort);
         System.out.println("- Valore del Timeout = " + this.connectionTimeout);
-        System.out.println("- Numero massimo di sezioni = " + this.maxNumSectionsPerDocument);
-        System.out.println("- Lunghezza minima dei campi da poter inserire = " + this.minNumCharactersArg);
-        System.out.println("- Lunghezza massima dei campi da poter inserire = " + this.maxNumCharactersArg);
         System.out.println("- Dimensione del ThreadPool = " + this.numWorkersInThreadPool);
         System.out.println("- Directory dove andare a salvare i file = " + this.serverSaveDocumentsDirectory);
         System.out.println();

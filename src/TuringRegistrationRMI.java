@@ -20,36 +20,6 @@ public class TuringRegistrationRMI implements TuringRegistrationRMIInterface {
     }
 
     /**
-     * Funzione che verifica se l'username/password/documento passato come argomento rientra nel range stabilito dal file
-     * di configurazione o meno
-     * @param argument username/password/documento da verificare
-     * @return SUCCESS se username/password/documento e' lecito
-     *         FAILURE altrimenti
-     */
-    private FunctionOutcome checkMinNumCharactersArg(String argument){
-        int minNumCharactersArg = this.serverConfigurationsManagement.getMinNumCharactersArg();
-        if(argument.length() < minNumCharactersArg)
-            return FunctionOutcome.FAILURE;  //argomento inferiore num. minimo caratteri consentito
-        else
-            return FunctionOutcome.SUCCESS;  //argomento non inferiore num. minimo caratteri consentito
-    }
-
-    /**
-     * Funzione che verifica se l'username/password/documento passato come argomento rientra nel range stabilito dal file
-     * di configurazione o meno
-     * @param argument username/password/documento da verificare
-     * @return SUCCESS se username/password/documento e' lecito
-     *         FAILURE altrimenti
-     */
-    private FunctionOutcome checkMaxNumCharactersArg(String argument){
-        int maxNumCharactersArg = this.serverConfigurationsManagement.getMaxNumCharactersArg();
-        if(argument.length() > maxNumCharactersArg)
-            return FunctionOutcome.FAILURE;  //argomento supera num. caratteri consentito
-        else
-            return FunctionOutcome.SUCCESS;  //argomento non supera num.caratteri consentito
-    }
-
-    /**
      * Funzione che si occupa di soddisfare la richiesta di registrazione di un utente
      * @param username nome dell'utente da registrare
      * @param password password del nuovo utente da registrare
@@ -60,38 +30,17 @@ public class TuringRegistrationRMI implements TuringRegistrationRMIInterface {
      */
     public synchronized ServerResponse registerTask(String username, String password){
 
-        //verifico se username supera numero minim0 caratteri consentito
-        FunctionOutcome check = checkMinNumCharactersArg(username);
-        if(check == FunctionOutcome.SUCCESS){ //numero caratteri lecito
-            //verifico se username supera numero massimo caratteri consentito
-            check = checkMaxNumCharactersArg(username);
-            if(check == FunctionOutcome.SUCCESS) { //numero caratteri lecito
-                //verifico se username contiene solo caratteri alfanumerici
-                check = this.fileManagement.IsValidFilename(username);
-                if (check == FunctionOutcome.SUCCESS) { //username contiene solo caratteri alfanumerici
-                    //verifico se password supera numero minimo caratteri consentito
-                    check = checkMinNumCharactersArg(password);
-                    if(check == FunctionOutcome.SUCCESS){
-                        //verifico se password supera numero massimo caratteri consentito
-                        check = checkMaxNumCharactersArg(password);
-                        if (check == FunctionOutcome.SUCCESS) { //numero caratteri lecito
+        //verifico se username contiene solo caratteri alfanumerici
+        FunctionOutcome check = this.fileManagement.IsValidFilename(username);
 
-                            //provo a soddisfare la richiesta del Client e ritorno esito
-                            //verifico che l'utente NON sia connesso (Client deve fare logout per potersi registrare con nuovo username)
-                            boolean online = this.serverDataStructures.checkIfUserIsOnline(username);
-                            if(online)
-                                return ServerResponse.OP_USER_MUST_LOGOUT; //utente connesso
-
-                            return this.serverDataStructures.registerUser(username, password);
-                        }
-                        return ServerResponse.OP_PASSWORD_TOO_LONG; //password troppo lunga
-                    }
-                    else return ServerResponse.OP_PASSWORD_TOO_SHORT; //password troppo corta
-                }
-                else return ServerResponse.OP_USERNAME_INAVLID_CHARACTERS; //username contiene caratteri speciali
-            }
-            else return ServerResponse.OP_USERNAME_TOO_LONG; //username troppo lungo
+        if(check == FunctionOutcome.SUCCESS){
+            //provo a soddisfare la richiesta del Client e ritorno esito
+            //verifico che l'utente NON sia connesso (Client deve fare logout per potersi registrare con nuovo username)
+            boolean online = this.serverDataStructures.checkIfUserIsOnline(username);
+            if(online)
+                return ServerResponse.OP_USER_MUST_LOGOUT; //utente connesso
+            return this.serverDataStructures.registerUser(username, password);
         }
-        else return ServerResponse.OP_USERNAME_TOO_SHORT; //username troppo corto
+        else return ServerResponse.OP_USERNAME_INAVLID_CHARACTERS; //username contiene caratteri speciali
     }
 }

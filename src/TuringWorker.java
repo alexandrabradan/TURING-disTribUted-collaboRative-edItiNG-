@@ -70,52 +70,6 @@ public class TuringWorker implements Runnable{
     }
 
     /**
-     * Funzione che verifica se l'username/password/documento passato come argomento rientra nel range stabilito dal file
-     * di configurazione o meno
-     * @param argument username/password/documento da verificare
-     * @return SUCCESS se username/password/documento e' lecito
-     *         FAILURE altrimenti
-     */
-    private FunctionOutcome checkMinNumCharactersArg(String argument){
-        int minNumCharactersArg = this.configurationsManagement.getMinNumCharactersArg();
-        if(argument.length() < minNumCharactersArg)
-            return FunctionOutcome.FAILURE;  //argomento inferiore num. minimo caratteri consentito
-        else
-            return FunctionOutcome.SUCCESS;  //argomento non inferiore num. minimo caratteri consentito
-    }
-
-    /**
-     * Funzione che verifica se l'username/password/documento passato come argomento rientra nel range stabilito dal file
-     * di configurazione o meno
-     * @param argument username/password/documento da verificare
-     * @return SUCCESS se username/password/documento e' lecito
-     *         FAILURE altrimenti
-     */
-    private FunctionOutcome checkMaxNumCharactersArg(String argument){
-        int maxNumCharactersArg = this.configurationsManagement.getMaxNumCharactersArg();
-        if(argument.length() > maxNumCharactersArg)
-            return FunctionOutcome.FAILURE;  //argomento supera num. caratteri consentito
-        else
-            return FunctionOutcome.SUCCESS;  //argomento non supera num.caratteri consentito
-    }
-
-
-    /**
-     * Funzione che verifica se il numero di sezioni di un documento che si vuole creare, non supera il valore
-     * massimo consentito dal file di configurazione
-     * @param numSections numero di sezioni da verificare
-     * @return SUCCESS se il numero di sezioni e' lecito
-     *         FAILURE altrimenti
-     */
-    private  FunctionOutcome checkMaxNumSectionsPerDocument(int numSections){
-        int maxNumSectionsPerDocument = this.configurationsManagement.getMaxNumSectionsPerDocument();
-        if(numSections > maxNumSectionsPerDocument)
-            return FunctionOutcome.FAILURE;  //numero sezioni supera valore consentito
-        else
-            return FunctionOutcome.SUCCESS;  //numero sezioni non supera valore consentito
-    }
-
-    /**
      * Funzione che si occupa di  verificare se gli argomenti della richiesta fatta dal Client sono leciti, piu' precisamente:
      * 1. verifica che username/password/nome_documento non superino il num. massimo di caratteri consentito
      * 2. verifica che username/password non abbiano un num. di caratteri inferiore a quello consentito
@@ -139,23 +93,16 @@ public class TuringWorker implements Runnable{
                 return this.turingTask.logoutTask();
             }
             case CREATE:{
-                //verifico se il nomde del documento supera il numero massimo consentito
-                FunctionOutcome check = checkMaxNumCharactersArg(this.currentArg1);
-                if(check == FunctionOutcome.SUCCESS){
-                    //verifico che il numero delle sezioni non superi il valore massimo consentito
-                    check = checkMaxNumSectionsPerDocument(Integer.parseInt(this.currentArg2));
-                    if(check == FunctionOutcome.SUCCESS){
+                //verifico se nome documento contiene solo caratteri alfanumerici
+                FunctionOutcome check = this.fileManagement.IsValidFilename(this.currentArg1);
 
-                        //provo a soddisfare la richiesta del Client e gli invio esito
-                        return this.turingTask.createTask(this.currentArg1, Integer.parseInt(this.currentArg2));
-                    }
-                    else{
-                        return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_EXCEED_LIMIT, "");
-                    }
+                if(check == FunctionOutcome.SUCCESS){ //nome non contiene caratteri speciali
+                    //provo a soddisfare la richiesta del Client e gli invio esito
+                    return this.turingTask.createTask(this.currentArg1, Integer.parseInt(this.currentArg2));
+
                 }
-                else {
-                    return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_TOO_LONG, "");
-                }
+                else this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_INAVLID_CHARACTERS, "");
+
             }
             case SHARE:{
                 //provo a soddisfare la richiesta del Client e gli invio esito

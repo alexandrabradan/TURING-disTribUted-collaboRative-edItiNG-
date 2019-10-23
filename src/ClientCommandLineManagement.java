@@ -164,22 +164,6 @@ public class ClientCommandLineManagement {
                             ": ['\\\\', '/', ':', '*', '?', '\"', '<', '>', '|']", currentArg1));
                     break;
                 }
-                case OP_USERNAME_TOO_SHORT:{
-                    System.err.println(String.format("[ERR] >> Username |%s| troppo corto.", currentArg1));
-                    break;
-                }
-                case OP_USERNAME_TOO_LONG:{
-                    System.err.println(String.format("[ERR] >> Username |%s| troppo lungo.", currentArg1));
-                    break;
-                }
-                case OP_PASSWORD_TOO_SHORT:{
-                    System.err.println(String.format("[ERR] >> Password |%s| troppo corta.", currentArg2));
-                    break;
-                }
-                case OP_PASSWORD_TOO_LONG:{
-                    System.err.println(String.format("[ERR] >> Password |%s| troppo lunga.", currentArg2));
-                    break;
-                }
                 case OP_USERNAME_ALREADY_TAKEN:{
                     System.err.println(String.format("[ERR] >> Username |%s| GIA' in uso.", currentArg1));
                     break;
@@ -227,9 +211,6 @@ public class ClientCommandLineManagement {
                 return readAndParseCommand(documentToEdit);
             }
             else{  //e' stato digitato qualcosa, verifico se e' lecito
-
-                //converto tutti i caratteri a piccoli
-                command = command.toLowerCase();
 
                 //divido commando letto in prossimita' di uno o piu' spazi vuoti
                 String[] commandWords = command.split("\\s+");

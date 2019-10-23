@@ -31,11 +31,6 @@ public class TuringTask {
      */
     private FileManagement fileManagement;
 
-    /*
-        N.B. Eccedenza numero caratteri consentiti e limite massimo sezioni e' stata fatta durante il parsing della
-             richiesta letta sul SocketChannel => nomi username/password/documenti corretti e numero max. sezioni lecite
-     */
-
 
     /**
      * Costruttore della classe TuringTask
@@ -88,7 +83,7 @@ public class TuringTask {
         //recupero canale di invio inviti dell'utente
         SocketChannel invitesChannel = this.serverDataStructures.searchHashInvites(this.client);
 
-        if(invitesChannel == null) { //utente  si e' disconesso / prima volta che fa LOGIN
+        if(invitesChannel == null) { //utente  e' crashato / prima volta che fa LOGIN
             return;
         }
 
@@ -159,8 +154,12 @@ public class TuringTask {
             return this.serverMessageManagement.writeResponse(ServerResponse.OP_PASSWORD_INCORRECT, "");
 
         //password corrisponde a quella fornita in fase di registrazione
-        //connetto utente => inserisco SocketChannel e utente nella HashTable degli utenti online
-        this.serverDataStructures.putToOnlineUsers(client, username);
+        //provo a connettere utente => inserisco SocketChannel e utente nella HashTable degli utenti online
+        FunctionOutcome check = this.serverDataStructures.putToOnlineUsers(client, username);
+
+        if(check == FunctionOutcome.FAILURE)  //utente connesso nel frattempo da qualcunaltro
+            //utente gia' connesso (eventualmente con altro Client)
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_ALREADY_ONLINE, "");
 
         //invio eventuali inviti pendenti
         //N.B. La prima volta che utente fara' LOGIN suo invitesSocket non sara' attivo => viene attivato
@@ -351,7 +350,7 @@ public class TuringTask {
             //recupero canale di invio del destinatario
             SocketChannel destInvitesChannel = this.serverDataStructures.searchHashInvites(destSocket);
 
-            if(destInvitesChannel == null){ //dest si e' disconesso
+            if(destInvitesChannel == null){ //dest si e' crashato
                 receiver.addSetPendingDocs(invite);   //inserisco invito nell'insieme dei pendenti
             }
             //creo nuova istanza di ServerMessageManagement per mandargli msg

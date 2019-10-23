@@ -7,13 +7,7 @@ public enum ServerResponse{
     OP_DOCUMENT_PERMISSION_DENIED, //utente non ha permessi per visualizzare un documento (non e' creatore ne' collaboratore)
     OP_SECTION_NOT_EXIST,  //sezione da editare/scarica non esiste
     OP_USERNAME_INAVLID_CHARACTERS, //username deve contente solo caratteri alfanumerici per creare cartelle univoche
-    OP_USERNAME_TOO_SHORT, //userdeme inferiore caratteri minimi consentiti
-    OP_USERNAME_TOO_LONG, //username eccede caratteri consentiti
-    OP_PASSWORD_TOO_SHORT, //password inferiore caratteri consentiti
-    OP_PASSWORD_TOO_LONG, //password eccede caratteri consentiti
-    OP_DOCUMENT_TOO_LONG, //documento inferiore caratteri consentiti
-    OP_DOCUMENT_TOO_SHORT, //documento eccede caratteri consentiti
-    OP_SECTION_EXCEED_LIMIT, //numero sezioni di un documento eccede il numero massimo consentito
+    OP_DOCUMENT_INAVLID_CHARACTERS, //nome documento deve contente solo caratteri alfanumerici per creare cartelle univoche
     OP_USERNAME_ALREADY_TAKEN,  //in fase di registrazione bisogna fornire un nome univoco (non usato da un altro utente)
     OP_USER_MUST_LOGOUT, //bisogna prima fare logout per registrare nuovo utente
     OP_USER_ALREADY_ONLINE,  //utente tenta di fare login ma e' gia' connesso

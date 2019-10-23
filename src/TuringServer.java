@@ -1,3 +1,7 @@
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 public class TuringServer {
     private static String defaultConfFile = "/src/data/turingServer.conf";
     private static ServerConfigurationsManagement configurationsManagement = new ServerConfigurationsManagement();
@@ -43,15 +47,43 @@ public class TuringServer {
             System.exit(-1);
         }
 
+        //*************************************ALLOCAZIONE STRUTTURE DATI *********************************************//
+        System.out.println("[Turing] >> Fase di allocazione delle strutture dati");
+        ServerDataStructures serverDataStructures = new ServerDataStructures();
+        System.out.println("[Turing] >> Strutture dati allocate con successo");
+
+        //*************************************CREAZIONE THREADPOOL***************************************************//
+        System.out.println("[Turing] >> Fase di creazione del ThreadPool");
+        //dal file di configurazione ho ricavato numero workers da attivare
+        int numWorkersInThreadPool = configurationsManagement.getNumWorkersInThreadPool();
+
+        //alloco coda di lavoro
+        LinkedBlockingQueue<Runnable> workingQueue = new LinkedBlockingQueue<>();
+
+        //creo ThreadPool personalizzato (faccio questo per assegnare nomi desiderati agli Workers)
+        ThreadPoolExecutor threadPool = new MyExecutor(numWorkersInThreadPool, numWorkersInThreadPool, 0L,
+                TimeUnit.MILLISECONDS, workingQueue);
+
+        System.out.println("[Turing] >> ThreadPool creato con successo");
+
         //***************************************CREAZIONE LISTENER THREAD*********************************************//
 
-        TuringListener listener = new TuringListener(configurationsManagement, Thread.currentThread());
+        TuringListener listener = new TuringListener(configurationsManagement, serverDataStructures, threadPool);
         Thread thread = new Thread(listener);
         thread.start();
 
-        //**********************************ATTENDO TERMINAZIONE LISTENER THREAD**************************************//
+        //*************************************CREAZIONE SHUTDOWNHOOK*************************************************//
 
-        System.out.println();
-        System.out.println("[Turing] >> SERVER TURING (disTribUted collaboRative edItiNG) TERMINATO");
+        System.out.println("[Turing] >> Fase di creazione del ShutdownHook");
+
+        //In concomitanza dei segnali ( SIGINT) || (SIGQUIT) || (SIGTERM) si effettuare GRACEFUL SHUTDOWN del Server, ossia:
+        //1. si soddisfanno tutte le richieste pendenti dei clients (rifiutando le nuove)
+        //2. si liberano le risorse allocate
+        //3. si fanno terminare tutti gli Workers e il Listener Thread
+        //Per fare questo segnalo alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
+        //di terminare il programma
+        Runtime.getRuntime().addShutdownHook(new ServerShutdownHook(thread, threadPool));
+
+        System.out.println("[Turing] >> ShutdownHook creato con successo");
     }
 }

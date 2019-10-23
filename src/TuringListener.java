@@ -34,10 +34,6 @@ public class TuringListener implements Runnable {
      * ThreadPool utilizzato dal Server per gestire le richieste che provvengono dai Clients
      */
     private ThreadPoolExecutor threadPool;
-    /**
-     * Riferimento alla coda di lavoro
-     */
-    private LinkedBlockingQueue<Runnable> workingQueue;
 
 
     /**
@@ -45,17 +41,17 @@ public class TuringListener implements Runnable {
      * @param configurationsManagement classe che contiene le variabili di configurazione estrappolate dal file
      *                                 di configurazione del Server (parsing fatto dal thread TuringServer che
      *                                 ha avviato questo Listener-thread)
+     * @param serverDataStructures classe che contiene strutture dati del Server
+     * @param threadPool ThreadPool utilizzato per soddisfare le richieste dei Clients
      */
-    public TuringListener(ServerConfigurationsManagement configurationsManagement, Thread turingServerThread){
+    public TuringListener(ServerConfigurationsManagement configurationsManagement, ServerDataStructures serverDataStructures,
+                          ThreadPoolExecutor threadPool ){
         this.configurationsManagement = configurationsManagement;
+        this.serverDataStructures = serverDataStructures;
+        this.threadPool = threadPool;
         this.TIMEOUT = this.configurationsManagement.getConnectionTimeout();
         this.address = new InetSocketAddress(this.configurationsManagement.getServerHost(),
                                                                         this.configurationsManagement.getServerPort());
-
-        //*************************************ALLOCAZIONE STRUTTURE DATI *********************************************//
-        System.out.println("[Turing] >> Fase di allocazione delle strutture dati");
-        this.serverDataStructures = new ServerDataStructures();
-        System.out.println("[Turing] >> Strutture dati allocate con successo");
 
         //*************************************CREAZIONE STUB PER REGISTRARE UTENTI***********************************//
         System.out.println("[Turing] >> Fase di attivazione dello stub RMI per le registrazioni");
@@ -67,34 +63,6 @@ public class TuringListener implements Runnable {
         }
 
         System.out.println("[Turing] >> Stub RMI attivato con successo");
-
-        //*************************************CREAZIONE THREADPOOL***************************************************//
-        System.out.println("[Turing] >> Fase di creazione del ThreadPool");
-        //dal file di configurazione ho ricavato numero workers da attivare
-        int numWorkersInThreadPool = this.configurationsManagement.getNumWorkersInThreadPool();
-
-        //alloco coda di lavoro
-        this.workingQueue = new LinkedBlockingQueue<>();
-
-        //creo ThreadPool personalizzato (faccio questo per assegnare nomi desiderati agli Workers)
-        this.threadPool = new MyExecutor(numWorkersInThreadPool, numWorkersInThreadPool, 0L,
-                TimeUnit.MILLISECONDS, this.workingQueue);
-
-        System.out.println("[Turing] >> ThreadPool creato con successo");
-
-        //*************************************CREAZIONE SHUTDOWNHOOK*************************************************//
-
-        System.out.println("[Turing] >> Fase di creazione del ShutdownHook");
-
-        //In concomitanza dei segnali ( SIGINT) || (SIGQUIT) || (SIGTERM) si effettuare GRACEFUL SHUTDOWN del Server, ossia:
-        //1. si soddisfanno tutte le richieste pendenti dei clients (rifiutando le nuove)
-        //2. si liberano le risorse allocate
-        //3. si fanno terminare tutti gli Workers e il Listener Thread
-        //Per fare questo segnalo alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
-        //di terminare il programma
-        Runtime.getRuntime().addShutdownHook(new ServerShutdownHook(Thread.currentThread(), this.threadPool, turingServerThread));
-
-        System.out.println("[Turing] >> ShutdownHook creato con successo");
     }
 
     /**
