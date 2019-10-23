@@ -19,9 +19,9 @@ public class ServerDataStructures {
      */
     private ConcurrentHashMap<String, Document> hash_documents;
     /**
-     * insieme degli indirizzi di multicast generati
+     * Tabella Hash che contiene le coppie: <indirizzo_multicast, documento>
      */
-    private BlockingQueue<String> multicast_set;
+    private ConcurrentHashMap<String, String> hash_multicast;
     /**
      * Tabella Hash che contiene le coppie: <clientSocketName, clientSocketChannel>
      */
@@ -40,7 +40,7 @@ public class ServerDataStructures {
     public ServerDataStructures(){
         //*************************************ALLOCAZIONE STRUTTURE DATI*********************************************//
         this.online_users = new ConcurrentHashMap<>();
-        this.multicast_set = new LinkedBlockingQueue<>();
+        this.hash_multicast = new ConcurrentHashMap<>();
         this.hash_users = new ConcurrentHashMap<>();
         this.hash_documents = new ConcurrentHashMap<>();
         this.hash_socket_names = new ConcurrentHashMap<>();
@@ -153,28 +153,30 @@ public class ServerDataStructures {
     //**********************METODI PER GESTIRE INSIEME INDIRIZZI DI MULTICAST***************************************//
 
     /**
-     * Funzione che controlla se l'indirizzo e' presente nell'insieme degli indirizzi di multicast o meno
+     * Funzione che controlla se l'indirizzo e' presente nella ht degli indirizzi di multicast o meno
      * @param ind indirizzo di cui bisogna verificare presenza nell'insieme degli indirizzi di multicast
      * @return true se l'indirizzo è presente nell'insieme di multicast
      *  	   false altrimenti
      */
     public boolean checkPresenceInMulticastAddress(String ind) {
-        return this.multicast_set.contains(ind);
+        return this.hash_multicast.contains(ind);
     }
 
     /**
      * Funzione che aggiunge un indirizzo all'insieme degli indirizzi di multicast
      * @param ind indirizzo da aggiungere
+     * @param  document nome del documento relativo all'indirizzo assegnato
      */
-    public void addToMulticastAddress(String ind) {
-        this.multicast_set.add(ind);
+    public void addToMulticastAddress(String ind, String document) {
+        this.hash_multicast.put(ind, document);
     }
 
     /**
      * Funzione che elimina indirizzo passato come argomento dall'insieme degli indirizzi di multicast
      * @param ind indirizzo da eliminare
+     * @return chiave eliminata
      */
-    public void removeFromMulticastAddress(String ind){this.multicast_set.remove(ind);}
+    public String removeFromMulticastAddress(String ind){return this.hash_multicast.remove(ind);}
 
     //**********************METODI PER ABILITARE UTENTE ALLA MODIFICA IN MUTUA ESCLUSIONE****************************//
 
@@ -215,6 +217,9 @@ public class ServerDataStructures {
         //documento non esiste di gia'
         //ricavo InetAddress da associare alla chat del documento
         String chatInd = new MulticastAddressRandomGenerator(this).getRandomAddress();
+
+        //aggiungo indirizzo all'insieme degli indirizzi assegnati
+        addToMulticastAddress(chatInd, document);
 
         //verifico che indirizzo di multicast non sia null (spazio degli indirizzi di multicast esaurito)
         if(chatInd.isEmpty())

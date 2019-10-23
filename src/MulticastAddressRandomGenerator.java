@@ -1,5 +1,6 @@
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Random;
 
@@ -32,12 +33,12 @@ public class MulticastAddressRandomGenerator {
     /**
      * indirizzi di multicast gia' generati in precedenza
      */
-    private LinkedList<String> generatedAddresses;
+    private LinkedHashSet<String> generatedAddresses;
 
     public MulticastAddressRandomGenerator(ServerDataStructures serverDataStructures){
         this.serverDataStructures = serverDataStructures;
         this.randomGenerator = new Random();
-        this.generatedAddresses = new LinkedList<>();
+        this.generatedAddresses = new LinkedHashSet<>();
     }
 
     /**
@@ -110,9 +111,6 @@ public class MulticastAddressRandomGenerator {
                 continue; //provo a generare un nuovo indirizzo
             }
             else{ //indirizzo non ancora assegnato
-
-                //aggiungo indirizzo all'insieme degli indirizzi assegnati
-                this.serverDataStructures.addToMulticastAddress(ind);
 
                 //ritorno indirizzo creato
                 return ind;
