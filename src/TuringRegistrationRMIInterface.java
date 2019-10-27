@@ -1,3 +1,4 @@
+import java.nio.channels.SocketChannel;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 
@@ -11,10 +12,11 @@ public interface TuringRegistrationRMIInterface extends Remote {
      * Funzione che consente ad un utente di registrarsi al servizio
      * @param username nome dell'utente
      * @param password password associata al nome
+     * @param currentUser utente, eventuale, attualmente connesso
      * @return OP_OK se l'utente è stato registrato
      *         OP_REGISTER_USERNAME_ALREADY_TAKEN se l'utente era già registrato
      *         OP_REGISTER_USER_ALREADY_ONLINE bisogna prima fare logout per registrare nuovo utente
      * @throws RemoteException I metodi remoti devono dichiarare di sollevare eccezioni remote
      */
-    public ServerResponse registerTask(String username, String password) throws RemoteException;
+    public ServerResponse registerTask(String username, String password,  String currentUser) throws RemoteException;
 }

@@ -6,7 +6,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class MyExecutor extends ThreadPoolExecutor {
 
+    /**
+     * pattern del nome che si vuole attribuire agli workers del ThredPool
+     */
     private static final String THREAD_NAME_PATTERN = "%s%d";
+    /**
+     * prefisso del nome che si vuole attribuire agli workers del Threadpool
+     */
     private static final String namePrefix = "Worker_";
 
     //devo creare un newFixedThreadPool personalizzato, di conseguenza i paramentri che devo

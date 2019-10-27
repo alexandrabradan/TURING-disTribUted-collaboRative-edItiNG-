@@ -1,15 +1,38 @@
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 
 public class TuringClient {
-    private static String defaultConfFile = "/src/data/turingClient.conf";
+    /**
+     * pah relativo, del file di configurazione di default del Client
+     */
+    private static String defaultConfFile = "/data/turingClient.conf";
+    //private static String defaultConfFile = "/src/data/turingClient.conf";
+    /**
+     * classe che si occupa di fare il parsing del file di configurazione e memorizzarne i valori
+     */
     private static ClientConfigurationManagement configurationsManagement = new ClientConfigurationManagement();
+    /**
+     * SocketChannel utilizzato per inviare richieste e leggere risposte
+     */
     private static SocketChannel clientSocket = null;      //client-socket
+    /**
+     * indirizzo del SocketChannel  utilizzato per inviare richieste e leggere risposte
+     */
     private static String serverHost;
+    /**
+     * porta del SocketChannel  utilizzato per inviare richieste e leggere risposte
+     */
     private static int serverPort;
+    /**
+     * indirizzo a cui connettersi al Server
+     */
     private static InetSocketAddress serverAddress;  //indirizzo e porta del Server a cui connettersi
     /**
      * Classe per gestire invio delle richieste e lettura delle resposte al/dal Server
@@ -57,6 +80,12 @@ public class TuringClient {
             }
         }
         else { //non  e' stato inserito nessun file di configurazione come argomento => parso quello di default
+
+            //mi costruisco il path assoluto del file di configurazione
+            FileManagement fileManagement = new FileManagement();
+            String currentPath = fileManagement.getCurrentPath();
+            defaultConfFile =  currentPath + defaultConfFile;
+
             FunctionOutcome parse = configurationsManagement.parseConf(defaultConfFile);
 
             if(parse == FunctionOutcome.FAILURE){
@@ -65,7 +94,7 @@ public class TuringClient {
             }
 
             System.out.println("[Turing] >> Il client è stato eseguito con le configurazioni di default");
-            System.out.println("[Turing] >> Se desidi personalizzare le configuarzioni, riesegui il codice inserendo tra gli argomenti il tuo file");
+            System.out.println("[Turing] >> Se desideri personalizzare le configuarzioni, riesegui il codice inserendo tra gli argomenti il tuo file");
             System.out.println("[Turing] >> Per maggiori dettagli sul formato delle configurazioni, guardare il file <./data/turingClient.conf>");
         }
 
@@ -187,7 +216,7 @@ public class TuringClient {
             return client;
 
         } catch (IOException e) {
-            e.printStackTrace();
+           // e.printStackTrace();
             return null; //ritorno un client-socket vuoto
         }
     }
@@ -257,7 +286,7 @@ public class TuringClient {
 
             return port[1];
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
            return "";
         }
     }
@@ -282,6 +311,10 @@ public class TuringClient {
           variabile nella quale memorizza il documento che l'utente sta editando
          */
         String documentToEdit = "";
+        /*
+          variabile nella quale memorizza la sezione che l'utente sta editando
+         */
+        int sectionToEdit = -1;
 
         while (true) {
 
@@ -290,7 +323,7 @@ public class TuringClient {
 
             //leggo commando da tastiera
             ClientCommandLineManagement commandLineManagement = new ClientCommandLineManagement(configurationsManagement);
-            FunctionOutcome check = commandLineManagement.readAndParseCommand(documentToEdit);
+            FunctionOutcome check = commandLineManagement.readAndParseCommand(documentToEdit, sectionToEdit);
 
             if(check == FunctionOutcome.SUCCESS){ //commando sintatticamente corretto
                 //discrimino cosa fare in base al commando digitato
@@ -305,7 +338,11 @@ public class TuringClient {
                         continue;
                     }
                     case REGISTER:{
-                        //registrazione al servizio tramite stub RMI avvenuta => commando seguente
+                        //registrazione al servizio tramite stub RMI
+                        String currentArg1 = commandLineManagement.getCurrentArg1();
+                        String currentArg2 = commandLineManagement.getCurrentArg2();
+
+                        handleRegistration(currentArg1, currentArg2, currentUser);
                         continue;
                     }
                     case RECEIVE:{
@@ -338,8 +375,11 @@ public class TuringClient {
                         //sue stampe ed attivare invitesListerer (thraed che ascolto sopraggiungere
                         // degli inviti online)
                         if(currentCommand == CommandType.LOGIN){
-                            //memorizzousername connesso, per personalizzare le stampe
-                            currentUser = commandLineManagement.getCurrentArg1();
+                            if(!currentUser.isEmpty()){
+                                System.err.println("[ERR] >> Devi prima fare il logout. Ora sei connesso come |" +
+                                        currentUser + " |");
+                                continue; //comando successivo
+                            }
                         }
 
                         //recupero eventuali argomenti
@@ -398,9 +438,16 @@ public class TuringClient {
                             continue;
                         }
 
+                        if(currentCommand == CommandType.LOGIN){
+                            //memorizzousername connesso, per personalizzare le stampe
+                            currentUser = commandLineManagement.getCurrentArg1();
+                        }
+
                         if(currentCommand == CommandType.EDIT){
                             //setto documento che sto editando
                             documentToEdit = currentArg1;
+                            //setto sezione che sto editando
+                            sectionToEdit = Integer.parseInt(currentArg2);
                         }
 
                         //in caso di END-EDIT devo proveddere ad inviare versione aggiornata al Server
@@ -409,16 +456,82 @@ public class TuringClient {
                                     " documento |%s|", currentUser, currentArg2, currentArg1));
 
                             documentToEdit = ""; //resetto documento che sto editando
+                            sectionToEdit = -1; //resetto sezione che sto editando
                         }
 
                         //in caso di LOGOUT devo resettare username connesso
                         if(currentCommand == CommandType.LOGOUT){
                             currentUser = "";  //resetto utente connesso
                             documentToEdit = ""; //resetto documento che sto editando
+                            sectionToEdit = -1; //resetto sezione che sto editando
                         }
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Funzione che si occupa di reperire lo stub RMI messo a disposizione dal Server e di effettuare
+     * la chiamata del metodo remoto "registerTask" con il quale si tenta di registrare un nuovo utente
+     * al servizio. Il metodo si occupa anche di stampare l'esito dell'operazione a schermo.
+     * @param username nome utente
+     * @param password password utente
+     * @param currentUser utente, eventuale, attualmente connesso
+     * @return SUCCESS se e' stato possibile registrare tramiet RMI l'utente al servizio
+     *         FAILURE altrimenti
+     */
+    public static FunctionOutcome handleRegistration(String username, String password, String currentUser){
+
+        Registry registry;
+        try {
+            //recupero Registro locale del Server
+            registry = LocateRegistry.getRegistry(configurationsManagement.getServerHost(),
+                    configurationsManagement.getRMIPort());
+
+            //recupero stub (riferimento oggetto remoto del Server)
+            TuringRegistrationRMIInterface stub;
+            try {
+                //provo a recuperare lo stub associato alla chiave univoca "TURING-RMI-REGISTRATION"
+                stub = (TuringRegistrationRMIInterface) registry.lookup("TURING-RMI-REGISTRATION");
+
+            } catch (NotBoundException e) {
+                //e.printStackTrace();
+                System.err.println("[ERR] >> Impossibile recuperare lo stub RMI per effettuare la registrazione");
+                return FunctionOutcome.FAILURE;
+
+            }
+
+            //stub recuperato con successo => invoco metodo remoto per registrarmi
+            ServerResponse serverResponse = stub.registerTask(username, password, currentUser);
+
+            switch (serverResponse){
+                case OP_OK:{
+                    System.out.println(String.format("[Turing] >> Registrazione dell'utente |%s| avvenuta con " +
+                            "successo", username));
+                    break;
+                }
+                case OP_USERNAME_INAVLID_CHARACTERS:{
+                    System.err.println(String.format("[ERR] >> Username |%s| NON valido. Il nome utente non puo' contentere" +
+                            ": ['\\\\', '/', ':', '*', '?', '\"', '<', '>', '|']", username));
+                    break;
+                }
+                case OP_USERNAME_ALREADY_TAKEN:{
+                    System.err.println(String.format("[ERR] >> Username |%s| GIA' in uso.", username));
+                    break;
+                }
+                case OP_USER_MUST_LOGOUT:{
+                    System.err.println("[ERR] >> Devi prima fare il logout per poterti registrate con un altro account.");
+                    break;
+                }
+            }
+
+            return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
+
+        } catch (RemoteException e) {
+            //e.printStackTrace();
+            System.err.println("[ERR] >> IMpossibile completare la rgistrazione tramite stub RMI");
+            return FunctionOutcome.FAILURE;
         }
     }
 
@@ -432,7 +545,8 @@ public class TuringClient {
 
             System.exit(-1);
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println("[ERR] >> Errore chiusura clientSocket");
             System.exit(-1);
         }
     }

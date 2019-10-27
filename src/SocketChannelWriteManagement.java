@@ -35,7 +35,8 @@ public class SocketChannelWriteManagement {
                 size -= bytesWrote; //decremento bytes da scrivere
 
             } catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                System.err.println(String.format("[ERR] >> Impossibile  scrivere sul SocketChannel: |%s| ", socket));
                 return FunctionOutcome.FAILURE; //SocketChannel si e' disconeesso / problemi I/O
             }
         }

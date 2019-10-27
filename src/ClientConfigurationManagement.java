@@ -6,17 +6,41 @@ import java.nio.file.Paths;
 import java.util.List;
 
 public class ClientConfigurationManagement {
-    private String serverHost; //DNS name server
-    private int serverPort; //porta su cui Server e' in ascolto
-    private int RMIPort; //porta utilizzata per gli inviti
-    private int multicastPort; //porta utilizzata per i gruppi di chat
-    private int connectionTimeout; //tempo attesa connessione Server / "receive" UDP chat multicast
-    private String clientsDownloadsDocumentsDirectory; //cartella nella quale Clients salvano loro files
-    private String clientsEditDocumentsDirectory; //cartella dove Clients salvano documenti da editare
+    /**
+     * DNS name server
+     */
+    private String serverHost;
+    /**
+     * porta su cui Server e' in ascolto
+     */
+    private int serverPort;
+    /**
+     * porta utilizzata per gli inviti
+     */
+    private int RMIPort;
+    /**
+     * porta utilizzata per i gruppi di chat
+     */
+    private int multicastPort;
+    /**
+     * tempo attesa connessione Server / "receive" UDP chat multicast
+     */
+    private int connectionTimeout;
+    /**
+     * cartella nella quale Clients salvano loro files
+     */
+    private String clientsDownloadsDocumentsDirectory;
+    /**
+     * cartella dove Clients salvano documenti da editare
+     */
+    private String clientsEditDocumentsDirectory;
 
     private FileManagement fileManagement = new FileManagement();
     private String currentPath = fileManagement.getCurrentPath();
 
+    /**
+     * Costruttore della classe ClientConfigurationManagement
+     */
     public ClientConfigurationManagement(){
         this.serverHost = "";
         this.serverPort = -1;
@@ -109,7 +133,7 @@ public class ClientConfigurationManagement {
      */
     public FunctionOutcome parseConf(String confFile){
 
-        confFile = currentPath + confFile;
+        //confFile = currentPath + confFile;
 
         //verifico se il file passato come paramentro esiste
         boolean exist = this.fileManagement.checkEsistenceFile(confFile);
@@ -156,11 +180,13 @@ public class ClientConfigurationManagement {
                             break;
                         case "maxNumSectionsPerDocument":
                         case "clientsDownloadsDocumentsDirectory":
-                            value = currentPath + "/src" + value;
+                            value = currentPath + value;
+                            //value = currentPath + "/src" + value;
                             this.clientsDownloadsDocumentsDirectory = value;
                             break;
                         case "clientsEditDocumentsDirectory":
-                            value = currentPath + "/src" + value;
+                            value = currentPath + value;
+                            //value = currentPath + "/src" + value;
                             this.clientsEditDocumentsDirectory = value;
                             break;
                         default:
@@ -169,7 +195,7 @@ public class ClientConfigurationManagement {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             System.err.println("[ERR] >> Errore nel leggere file di configurazione = " + confFile);
             return FunctionOutcome.FAILURE;
         }
@@ -233,13 +259,7 @@ public class ClientConfigurationManagement {
      *         FAILURE se la creazione di una delle 2 cartelle oppure lo svuotamento di una di esse non ha avuto successo
      */
     public FunctionOutcome allocateConf(){
-        boolean exist = this.fileManagement.checkEsistenceDirectory(this.clientsDownloadsDocumentsDirectory);
-        boolean exist2 = this.fileManagement.checkEsistenceDirectory(this.clientsEditDocumentsDirectory);
 
-        if(exist){
-            //@TODO trovare modo per svuotare cartella
-            //this.fileManagement.deleteDirectory(this.clientsDownloadsDocumentsDirectory);
-        }
         FunctionOutcome check1 = this.fileManagement.createDirectory(this.clientsDownloadsDocumentsDirectory);
 
         if(check1 == FunctionOutcome.FAILURE){
@@ -247,10 +267,6 @@ public class ClientConfigurationManagement {
             return FunctionOutcome.FAILURE;
         }
 
-        if(exist2){
-            //@TODO trovare modo per svuotare cartella
-            //this.fileManagement.deleteDirectory(this.clientsEditDocumentsDirectory);;
-        }
         FunctionOutcome check2 = this.fileManagement.createDirectory(this.clientsEditDocumentsDirectory);
 
         if(check1 == FunctionOutcome.FAILURE || check2 == FunctionOutcome.FAILURE){
@@ -261,6 +277,11 @@ public class ClientConfigurationManagement {
         return FunctionOutcome.SUCCESS; //creazione/svuotamento 2 cartelle andato a buon fine
     }
 
+    /**
+     * Funzione che si occupa di allocare le cartelle dedicate al Client
+     * @return SUCCESS se l'allocazione ha avuto successo
+     *         FAILURE altrimenti
+     */
     public FunctionOutcome allocateClientConf(){
         boolean exist = this.fileManagement.checkEsistenceDirectory(this.clientsDownloadsDocumentsDirectory);
         boolean exist2 = this.fileManagement.checkEsistenceDirectory(this.clientsEditDocumentsDirectory);
@@ -288,6 +309,9 @@ public class ClientConfigurationManagement {
         return FunctionOutcome.SUCCESS; //creazione/svuotamento 2 cartelle andato a buon fine
     }
 
+    /**
+     * Funzione che si occupa di cancellare le cartelle dedicare al Client
+     */
     public void deallocateClientConf(){
         fileManagement.deleteDirectory(this.clientsDownloadsDocumentsDirectory);
         fileManagement.deleteDirectory(this.clientsEditDocumentsDirectory);

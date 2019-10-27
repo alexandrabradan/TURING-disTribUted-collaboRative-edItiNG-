@@ -1,5 +1,5 @@
 import java.net.InetAddress;
-import java.nio.channels.SocketChannel;
+import java.net.MulticastSocket;
 import java.util.LinkedHashSet;
 
 public class Document {
@@ -31,6 +31,11 @@ public class Document {
     private String chatInd;
 
     /**
+     * Ogetto per utilizzato per reperire la mutua esclusione sull'chatSocket del documento
+     */
+    private Object lockChatSocket;
+
+    /**
      * Costruttore della classe
      * @param document nome del documento
      * @param creator  nome del creatore del documento
@@ -50,6 +55,7 @@ public class Document {
         }
 
         this.chatInd = chatInd;
+        this.lockChatSocket = new Object();
     }
 
     /**
@@ -85,6 +91,12 @@ public class Document {
     public synchronized String getChatInd() {
         return this.chatInd;
     }
+
+    /**
+     * Funzione per reperire l'oggetto che da la mutua esclusione sulla scrittura dell'chatSocket del documento
+     * @return this.lockInvitesSocket
+     */
+    public synchronized Object getLockChatSocket(){return this.lockChatSocket;}
 
     /**
      * Funzione che restituisce il numero di sezioni del documento

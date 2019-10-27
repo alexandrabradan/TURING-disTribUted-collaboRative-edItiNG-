@@ -1,6 +1,5 @@
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
-import java.util.Set;
 
 public class TuringWorker implements Runnable{
     /**
@@ -101,7 +100,7 @@ public class TuringWorker implements Runnable{
                     return this.turingTask.createTask(this.currentArg1, Integer.parseInt(this.currentArg2));
 
                 }
-                else this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_INAVLID_CHARACTERS, "");
+                else return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_INAVLID_CHARACTERS, "");
 
             }
             case SHARE:{
@@ -161,45 +160,19 @@ public class TuringWorker implements Runnable{
     private void endWorker(String socketName){
         try {
 
-            //@TODO VERIFICARE SE CLIENT STAVA EDITANDO QUALCHE SEZIONE, CHIUDERE EDITING E RILASCIARE MUTUA ESCLUSIONE
-
-            //ricavo nome del Socket del Client
-            String hostAndPort = socketName;
-
             //verifico se Client e' connesso e se lo e', lo disconetto
             String username = this.dataStructures.removeFromOnlineUsers(this.client);
-
-            //chiudo il SocketChannel del Client di cui il Worker si sta occupando
-            this.client.close();
-
-            //elimino associazione tra nome Socket e clientSocketChannel
-            this.dataStructures.removeHashSocketNames(hostAndPort);
 
             //elimino associazione tra clientSocket ed invitesSocket
             this.dataStructures.removeHashInvites(this.client);
 
             if(username != null){
-                //verifico se il Client ha acquisito mutua sezione su qualche sezione e la rilascio, in caso affermativo
-                //AVENDO TOLTO CLIENT DAI CONNESSI => INVITI A COLLABORARE A NUOVI DOCUMENTI VANNO NEI PENDING_INVITES
-                // => NUOVI DOCUMENTI INSERITI NELL'INSIEME DEI DOCUMENTI DELL'UTENTE QUANDO FA LOGIN => insieme consistente
-                //itero sull'insieme dei documenti del Client
-                User usr = this.dataStructures.getUserFromHash(username); //recupero istanza dell'utente
-                Set<String> usrDocs =  usr.getSetDocs(); //recupero insieme documenti dell'utente
-                for(String document: usrDocs){
-                    Document doc = this.dataStructures.getDocumentFromHash(document); //recupero istanza del documento
-                    //itero sull'array di lock per verificare se Client ne ha acquisita qualcuna
-
-                    //NON MI INTERESSA CONSISTENZA (devo solo trovare slots eventualmente occupati dal clientSocket)
-
-                    String[] sectionsLockArray = doc.getSectionsLockArray();
-                    for(int i = 0; i < sectionsLockArray.length; i++){
-                        if(sectionsLockArray[i].equals(username)){
-                            //libero sezione
-                            doc.unlockSection(i + 1, username); //loop parte da 0, conteggio sezioni da 1
-                        }
-                    }
-                }
+                //libero eventuale sezione acquisita dall'utente
+                turingTask.freeAcquiredSections(username);
             }
+
+            //chiudo il SocketChannel del Client di cui il Worker si sta occupando
+            this.client.close();
 
             System.out.println(String.format("[%s] >> Socket |%s| chiuso con successo",
                     Thread.currentThread().getName(), socketName));
@@ -208,7 +181,7 @@ public class TuringWorker implements Runnable{
             Thread.currentThread().interrupt();
 
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             System.err.println(String.format("[%s] Impossibile chiudere il SocketChannel |%s|",
                     Thread.currentThread().getName(), socketName));
             System.exit(-1);
@@ -229,7 +202,9 @@ public class TuringWorker implements Runnable{
         try {
             socketName = this.client.getRemoteAddress().toString();
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println("[ERR] >> Impossibile reperire l'idirizzo e la porta dell'host");
+            System.exit(-1);
         }
 
         //leggo richiesta del Client
@@ -240,7 +215,7 @@ public class TuringWorker implements Runnable{
                 System.err.println(String.format("[%s] >> Lettura richiesta del socket |%s| fallita",
                         Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
             } catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
                 System.exit(-1);
             }
 
@@ -259,7 +234,7 @@ public class TuringWorker implements Runnable{
             System.out.println(String.format("[%s] >> Lettura richiesta |%s| del socket |%s| avvenuta con successo",
                     Thread.currentThread().getName(), this.currentCommand, this.client.getRemoteAddress().toString()));
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             System.exit(-1);
         }
 
@@ -273,7 +248,7 @@ public class TuringWorker implements Runnable{
                 System.err.println(String.format("[%s] >> Invio risposta al socket |%s| fallita",
                         Thread.currentThread().getName(), this.client.getRemoteAddress().toString()));
             } catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
                 System.exit(-1);
             }
 

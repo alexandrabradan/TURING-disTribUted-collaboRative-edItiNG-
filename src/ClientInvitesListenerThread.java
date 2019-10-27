@@ -59,7 +59,8 @@ public class ClientInvitesListenerThread extends Thread {
         try {
             hostAndPort = this.clientSocket.getLocalAddress().toString();
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println("[ERR] >> Impossibile reperire l'indirizzo e la porta del clientSocket");
             System.exit(-1);
         }
 
@@ -94,7 +95,8 @@ public class ClientInvitesListenerThread extends Thread {
         try {
             this.invitesSocket.close();  //chiudo socket inviti
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println("[ERR] >> Impossibile chiudere l'invitesSocket");
             System.exit(-1);
         }
     }

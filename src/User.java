@@ -20,6 +20,10 @@ public class User {
      */
     private Set<String> set_pendingDocs;
     /**
+     * coppia (nome documento, sezione) che eventualmente l'utente sta editando
+     */
+    private Object[] documentAndSectionEditetd;
+    /**
      * Ogetto per utilizzato per reperire la mutua esclusione sull'invitesSocketChannel dedicato
      * all'ascolto degli inviti del Client
      */
@@ -33,6 +37,9 @@ public class User {
     public User(String username, String password) {
         this.set_docs = new LinkedHashSet<>();
         this.set_pendingDocs = new LinkedHashSet<>();
+        this.documentAndSectionEditetd =  new Object[2]; //deve contente solo (chiave, valore)
+        this.documentAndSectionEditetd[0] = "";
+        this.documentAndSectionEditetd[1] = -1;
 
         this.username = username;
         this.password = password;
@@ -46,6 +53,22 @@ public class User {
      * @return this.lockInvitesSocket
      */
     public synchronized Object getLockInvitesSocket(){return this.lockInvitesSocket;}
+
+    /**
+     * Funzione per reperire l'eventuale documento e sezione editati dall'utente
+     * @return this.documentAndSectionEditetd;
+     */
+    public synchronized Object[] getDocumentAndSectionEditetd(){return this.documentAndSectionEditetd;}
+
+    /**
+     * Funzione per settare quale documento e sezione l'utente ha editato, ha smesso di editare
+     * @param document documento che utente ha editato / ha smesso di editare
+     * @param section sezione che utente ha editato / ha smesso di editare
+     */
+    public synchronized void setDocumentAndSectionEditetd(String document, int section){
+        this.documentAndSectionEditetd[0] = document;
+        this.documentAndSectionEditetd[1] = section;
+    }
 
     /**
      *Funzione che restituisce il nome dell'utente

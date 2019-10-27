@@ -35,7 +35,8 @@ public class SocketChannelReadManagement {
                 size -= bytesRead; //decremento bytes da leggere
 
             } catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                System.err.println(String.format("[ERR] >> Impossibile leggere dal SocketChannel: |%s| ", socket));
                 return FunctionOutcome.FAILURE; //SocketChannel si e' disconeesso / problemi I/O
             }
         }

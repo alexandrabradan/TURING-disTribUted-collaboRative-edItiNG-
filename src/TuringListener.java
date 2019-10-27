@@ -1,6 +1,5 @@
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
+import java.net.*;
 import java.nio.channels.*;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
@@ -96,11 +95,16 @@ public class TuringListener implements Runnable {
 
             return FunctionOutcome.SUCCESS;
         } catch (RemoteException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             return FunctionOutcome.FAILURE;
         }
     }
 
+    /**
+     * Funzione che si occupa di re-inserire i channels dei Clients che sono stati soddisfati, per monitorare
+     * altre loro richieste
+     * @param selector selettore nel quale reiserire i canali
+     */
     public void addAgainSatisfiedSocketChannelsToSelector(Selector selector){
 
         //recupero SocketChannels soddisfatti da reinserire nel selettore
@@ -115,9 +119,52 @@ public class TuringListener implements Runnable {
             try {
                 socketChannel.register(selector, SelectionKey.OP_READ); //registro nuovamente SocketChannel lettura richieste
             } catch (ClosedChannelException e) {
-                e.printStackTrace();
-                System.exit(-1);
+                // probabilmente SocketChannel si e' chiuso nel mentre lo stavo aggiungeno => libero le sue risorse
+                //verifico se Client e' connesso e se lo e', lo disconetto
+                String username = this.serverDataStructures.removeFromOnlineUsers(socketChannel);
+
+                //elimino associazione tra clientSocket ed invitesSocket
+                this.serverDataStructures.removeHashInvites(socketChannel);
+
+                if(username != null){
+                    //libero eventuale sezione acquisita dall'utente
+                    new TuringTask(configurationsManagement, serverDataStructures,
+                            new ServerMessageManagement(socketChannel), socketChannel).freeAcquiredSections(username);
+                }
+
+                //chiudo il SocketChannel del Client di cui il Worker si sta occupando
+                try {
+                    socketChannel.close();
+
+                    System.out.println(String.format("[%s] >> Socket |%s| chiuso con successo",
+                            Thread.currentThread().getName(), socketChannel));
+
+                } catch (IOException ex) {
+                    continue; //continuo iterazione
+                }
+                continue; //continuo iterazione senza aggiungere il canale
             }
+        }
+    }
+
+    /**
+     * Funzione che si occupa di rimuove i SocketChannels utilizzati come canali di invio dal Selettore
+     * @param selector selettore dal quale rimuovere i canali
+     */
+    public void deleteSocketChannelsFromSelector(Selector selector){
+
+        //recupero SocketChannels da eliminare
+        BlockingQueue<SocketChannel> selectorKeysToDelete =  this.serverDataStructures.getSelectorKeysToDelete();
+
+        //rimuovo SocketChannels dalla BlockingQueue e li trasferisco in un vettore, per poter iterare tale
+        //vettore ed eliminare, uno ad uno, i canali dal selettore
+        Vector<SocketChannel> socketChannelsList = new Vector<>();
+        selectorKeysToDelete.drainTo(socketChannelsList);
+
+        for(SocketChannel socketChannel: socketChannelsList){
+            SelectionKey key = socketChannel.keyFor(selector); //recupero chiave associata al socket nel selettore
+            if(key.isValid())
+                key.cancel(); //rimuovo chiave dal selettore
         }
     }
 
@@ -160,6 +207,10 @@ public class TuringListener implements Runnable {
                 //La riaggiunta permette la lettura di nuove richieste da parte di questi Clients
                 addAgainSatisfiedSocketChannelsToSelector(selector);
 
+                //rimuovo dal selettore i SocketChannel che ho rilevato essere canali di invio inviti (sono canali
+                // idle/inutilizzati dal selettore)
+                deleteSocketChannelsFromSelector(selector);
+
                 //seleziono clients-sockets pronti per fare un'operazione di IO
                 //N.N Setto un timer per poter sbloccare quei SochetChannels che sono stati reinseriti dagli Workers
                 // (nel selectorKeysToReinsert set) in seguito al soddisfacimento di una loro richiesta, perche'
@@ -184,7 +235,7 @@ public class TuringListener implements Runnable {
                     iterator.remove();
 
                     //se ServerSocketChannel e' pronto per accettare nuove connessioni
-                    if (key.isAcceptable() && key == serverSelectionKey) {
+                    if (key.isValid() && key.isAcceptable() && key == serverSelectionKey) {
 
                         //recupero ServerSocketChannel codificato dal SelectionKey ottenuto in fase di registrazione
                         //del ServerSocket al Selector
@@ -208,7 +259,7 @@ public class TuringListener implements Runnable {
                         SelectionKey clientKey = client.register(selector, SelectionKey.OP_READ);
 
                     }
-                    if (key.isReadable()) {
+                    if (key.isValid() && key.isReadable()) {
                         //recupero client-socket codificato dal SelectionKey
                         SocketChannel client = (SocketChannel) key.channel();
 
@@ -240,7 +291,7 @@ public class TuringListener implements Runnable {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             System.err.println("[ERR] >> Problemi I/O con ServerSocket");
             Thread.currentThread().interrupt(); //segnalo al padre che Listener ha terminato sua esecuzione
         }

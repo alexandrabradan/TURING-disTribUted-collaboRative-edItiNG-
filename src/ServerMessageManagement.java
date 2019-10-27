@@ -118,6 +118,16 @@ public class ServerMessageManagement {
             this.currentCommand = CommandType.values()[this.header.getInt()]; //converto valore numerico nel rispettivo ENUM
             int requestBodyLength = this.header.getInt(); //reperisco dimensione BODY
 
+            //devo resettare il contenuto del body (readRequest utilizzata dal Server per leggere contenuto di una
+            // sezione editata, eventualemente nulla => requestBodyLength = 0). Se non resetto il buffer scrivo
+            //gli argomenti prima sulla sezione, lato server (ossia il nome del documento e il numero della sezione)
+            if(requestBodyLength == 0){
+                this.body = ByteBuffer.allocate(1);
+                String whitespace = " ";
+                byte[] whitespaceBytes = whitespace.getBytes();
+                this.body.put(whitespaceBytes);
+            }
+
             //leggo eventuale BODY della richiesta
             if(requestBodyLength > 0){
 
@@ -222,7 +232,8 @@ public class ServerMessageManagement {
                         Thread.currentThread().getName(), serverResponse, this.clientSocket.getRemoteAddress().toString()));
 
             } catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                System.err.println("[ERR] >> Impossibile reperire l'indirizzo e la porta del clientSocket");
                 System.exit(-1);
             }
 

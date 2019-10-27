@@ -1,10 +1,6 @@
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.rmi.NotBoundException;
-import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
 
 public class ClientCommandLineManagement {
     /**
@@ -124,71 +120,13 @@ public class ClientCommandLineManagement {
     }
 
     /**
-     * Funzione che si occupa di reperire lo stub RMI messo a disposizione dal Server e di effettuare
-     * la chiamata del metodo remoto "registerTask" con il quale si tenta di registrare un nuovo utente
-     * al servizio. Il metodo si occupa anche di stampare l'esito dell'operazione a schermo.
-     * @return SUCCESS se e' stato possibile registrare tramiet RMI l'utente al servizio
-     *         FAILURE altrimenti
-     */
-    public FunctionOutcome handleRegistration(){
-
-        Registry registry;
-        try {
-            //recupero Registro locale del Server
-            registry = LocateRegistry.getRegistry(this.clientConfigurationManagement.getServerHost(),
-                    this.clientConfigurationManagement.getRMIPort());
-
-            //recupero stub (riferimento oggetto remoto del Server)
-            TuringRegistrationRMIInterface stub;
-            try {
-                //provo a recuperare lo stub associato alla chiave univoca "TURING-RMI-REGISTRATION"
-                stub = (TuringRegistrationRMIInterface) registry.lookup("TURING-RMI-REGISTRATION");
-
-            } catch (NotBoundException e) {
-                e.printStackTrace();
-                return FunctionOutcome.FAILURE;
-
-            }
-
-            //stub recuperato con successo => invoco metodo remoto per registrarmi
-            ServerResponse serverResponse = stub.registerTask(this.currentArg1, this.currentArg2);
-
-            switch (serverResponse){
-                case OP_OK:{
-                    System.out.println(String.format("[Turing] >> Registrazione dell'utente |%s| avvenuta con " +
-                            "successo", currentArg1));
-                    break;
-                }
-                case OP_USERNAME_INAVLID_CHARACTERS:{
-                    System.err.println(String.format("[ERR] >> Username |%s| NON valido. Il nome utente non puo' contentere" +
-                            ": ['\\\\', '/', ':', '*', '?', '\"', '<', '>', '|']", currentArg1));
-                    break;
-                }
-                case OP_USERNAME_ALREADY_TAKEN:{
-                    System.err.println(String.format("[ERR] >> Username |%s| GIA' in uso.", currentArg1));
-                    break;
-                }
-                case OP_USER_MUST_LOGOUT:{
-                    System.err.println("[ERR] >> Devi prima fare il logout per poterti registrate con un altro account.");
-                    break;
-                }
-            }
-
-            return FunctionOutcome.SUCCESS; //notifico al ciclo principale che la lettura della risposta e' andata a buon fine
-
-        } catch (RemoteException e) {
-            e.printStackTrace();
-            return FunctionOutcome.FAILURE;
-        }
-    }
-
-    /**
      * Funzione che si occupa di leggere un commando da tastiera e di verificarne la correttezza sintattica
      * @param documentToEdit nome del documento che il Client sta eventualmente editando
+     * @param sectionToEdit eventuale sezione che il Client sta editando
      * @return SUCCESS se il commando e' sintatticamente corretto
      *         FAILURE altrimenti
      */
-    public FunctionOutcome readAndParseCommand(String documentToEdit){
+    public FunctionOutcome readAndParseCommand(String documentToEdit, int sectionToEdit){
 
         //assegno valori di defual alle variabili di condizione della classe, per evitare incosistenze con comandi
         //letti da tastiera precedentemente
@@ -208,7 +146,7 @@ public class ClientCommandLineManagement {
             if(command.length() == 0){  //nessun commando inserito (solo Tab, altrimenti BufferedReader non inescato)
                 System.err.println("[Turing] >> Non hai inserito nessun comando.");
                 System.out.println("[Turing] >> Per favore, digita nuovamente il comando:");
-                return readAndParseCommand(documentToEdit);
+                return readAndParseCommand(documentToEdit, sectionToEdit);
             }
             else{  //e' stato digitato qualcosa, verifico se e' lecito
 
@@ -223,7 +161,7 @@ public class ClientCommandLineManagement {
                     System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
                     System.out.println("[Turing] >> turing --help");
                     System.out.println("[Turing] >> Altrimenti digita nuovamente il comando:");
-                    return readAndParseCommand(documentToEdit);
+                    return readAndParseCommand(documentToEdit, sectionToEdit);
                 }
                 else{  // comando inizia con la parola "turing"
 
@@ -233,7 +171,7 @@ public class ClientCommandLineManagement {
                         System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
                         System.out.println("[Turing] >> turing --help");
                         System.out.println("[Turing] >>  Altrimenti digita nuovamente il comando:");
-                        return readAndParseCommand(documentToEdit);
+                        return readAndParseCommand(documentToEdit, sectionToEdit);
                     }
                     else{  //esiste seconda parola (richiesta)
 
@@ -241,11 +179,13 @@ public class ClientCommandLineManagement {
                         //1. SEND
                         //2. RECEIVE
                         //3. END-EDIT
+                        //4. HELP
+                        //5. EXIT
                         if(!documentToEdit.isEmpty()){
                             if(!commandWords[1].equals("send") && !commandWords[1].equals("receive") &&
-                                    !commandWords[1].equals("end-edit")){
-                                System.err.println(String.format("[ERR] Devi prima finire di editare il documento |%s| " +
-                                                "per poter digitare un nuovo comando", documentToEdit));
+                                    !commandWords[1].equals("end-edit") && !commandWords[1].equals("help")){
+                                System.err.println(String.format("[ERR] Devi prima finire di editare la sezione |%s| del documento |%s| " +
+                                                "per poter digitare un nuovo comando", sectionToEdit, documentToEdit));
                                 return FunctionOutcome.FAILURE; //segnalo al Client di ripetere digitazione comando
                             }
                         }
@@ -257,7 +197,7 @@ public class ClientCommandLineManagement {
                                 //verifico se dopo il --help ci sono ancora parole
                                 String correctCommandToPrint = "--help";
                                 FunctionOutcome check =  checkEmptyARGRequest(commandWords,correctCommandToPrint,
-                                        CommandType.HELP, documentToEdit);
+                                        CommandType.HELP, documentToEdit, sectionToEdit);
                                 if(check == FunctionOutcome.SUCCESS) //comando sintatticamente corretto
                                     printHelp();  //stampo msg di aiuto
                                 return check;  // ritorno successo/insuccesso
@@ -265,34 +205,31 @@ public class ClientCommandLineManagement {
                             case("register"):{
                                 //verifico se c'e' l'username e la password
                                 String correctCommandToPrint = "register <username> <password>";
-                                FunctionOutcome check = checkTwoARGSRequest(commandWords, correctCommandToPrint,
-                                        CommandType.REGISTER, documentToEdit);
-                                if(check == FunctionOutcome.SUCCESS) //commando sintatticamente corretto
-                                    return handleRegistration();
-                                else return check; //commando sintatticamente scorretto
+                                return checkTwoARGSRequest(commandWords, correctCommandToPrint,
+                                        CommandType.REGISTER, documentToEdit, sectionToEdit);
                             }
                             case("login"):{
                                 //verifico se c'e' l'username e la password
                                 String correctCommandToPrint = "login <username> <password>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint,
-                                        CommandType.LOGIN, documentToEdit);
+                                        CommandType.LOGIN, documentToEdit, sectionToEdit);
                             }
                             case("logout"):{
                                 String correctCommandToPrint = "logout";
                                 return checkEmptyARGRequest(commandWords, correctCommandToPrint,
-                                        CommandType.LOGOUT, documentToEdit);
+                                        CommandType.LOGOUT, documentToEdit, sectionToEdit);
                             }
                             case("create"):{
                                 //verifico se c'e' nome documento e numero sezioni
                                 String correctCommandToPrint = "create <doc> <numsezioni>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint,
-                                        CommandType.CREATE, documentToEdit);
+                                        CommandType.CREATE, documentToEdit, sectionToEdit);
                             }
                             case("share"):{
                                 //verifico se c'e' il documento e l'username per la condivisione
                                 String correctCommandToPrint = "share <doc> <username>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint,
-                                        CommandType.SHARE, documentToEdit);
+                                        CommandType.SHARE, documentToEdit, sectionToEdit);
                             }
                             case("show"):{
                                 //verifico se esiste solo terza parola (=> mostra intero documento)
@@ -301,68 +238,68 @@ public class ClientCommandLineManagement {
                                 if(commandWordsLength == 3){ //esiste solo documento
                                     String correctCommandToPrint = "show <doc>";
                                     return checkOneARGRequest(commandWords, correctCommandToPrint,
-                                            CommandType.SHOW_DOCUMENT, documentToEdit);
+                                            CommandType.SHOW_DOCUMENT, documentToEdit, sectionToEdit);
                                 }
                                 else if(commandWordsLength >= 4) {  //esiste anche sezione del documento
                                     String correctCommandToPrint = "show <doc> <sec>";
                                     return checkTwoARGSRequest(commandWords, correctCommandToPrint,
-                                            CommandType.SHOW_SECTION, documentToEdit);
+                                            CommandType.SHOW_SECTION, documentToEdit, sectionToEdit);
                                 }
                                 else{
                                     System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
                                     System.out.println("[Turing] >> turing show <doc> OPPURE turing show <doc> <sec>");
                                     System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-                                    return readAndParseCommand(documentToEdit);
+                                    return readAndParseCommand(documentToEdit, sectionToEdit);
                                 }
                             }
                             case("list"):{
                                 //verifico se dopo il list ci sono ancora parole
                                 String correctCommandToPrint = "list";
                                 return checkEmptyARGRequest(commandWords, correctCommandToPrint,
-                                        CommandType.LIST, documentToEdit);
+                                        CommandType.LIST, documentToEdit, sectionToEdit);
                             }
                             case("edit"):{
                                 //verifico se c'e' nome documento e numero sezione da mofidicare
                                 String correctCommandToPrint = "edit <doc> <sec>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint,
-                                        CommandType.EDIT, documentToEdit);
+                                        CommandType.EDIT, documentToEdit, sectionToEdit);
                             }
                             case("end-edit"):{
                                 //verifico se c'e' nome documento e numero sezione modificata
                                 String correctCommandToPrint = "end-edit <doc> <sec>";
                                 return checkTwoARGSRequest(commandWords, correctCommandToPrint,
-                                        CommandType.END_EDIT, documentToEdit);
+                                        CommandType.END_EDIT, documentToEdit, sectionToEdit);
                             }
                             case("send"):{
                                 //verifico se c'e messaggio da inviare
                                 String correctCommandToPrint = "send <msg>";
                                 return checkSendMessage(commandWords, correctCommandToPrint,
-                                        CommandType.SEND, documentToEdit);
+                                        CommandType.SEND, documentToEdit, sectionToEdit);
                             }
                             case "receive":{
                                 //verifico se dopo il receive ci sono ancora parole
                                 String correctCommandToPrint = "receive";
                                 return checkEmptyARGRequest(commandWords, correctCommandToPrint,
-                                        CommandType.RECEIVE, documentToEdit);
+                                        CommandType.RECEIVE, documentToEdit, sectionToEdit);
                             }
                             case "exit":{
                                 //verifico se dopo l' exit ci sono ancora parole
                                 String correctCommandToPrint = "exit";
                                 return checkEmptyARGRequest(commandWords, correctCommandToPrint,
-                                        CommandType.EXIT, documentToEdit);
+                                        CommandType.EXIT, documentToEdit, sectionToEdit);
                             }
                             default:
                                 System.err.println("[Turing] >> Comando inesistente.");
                                 System.out.println("[Turing] >> Se hai bisogno di aiuto digita:");
                                 System.out.println("[Turing] >> turing --help");
                                 System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-                                return readAndParseCommand(documentToEdit);
+                                return readAndParseCommand(documentToEdit, sectionToEdit);
                         }
                     }
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             System.err.println("[ERR] >> Errore nella lettura del comando da tastiera");
             System.exit(-1);
         }
@@ -403,16 +340,17 @@ public class ClientCommandLineManagement {
      * @param commandWords parole lette da linea di commando
      * @param correctCommandToPrint messaggio personalizzato da stampare sullo schermo
      * @param documentToEdit eventuale documento che Client sta editando
+     * @param sectionToEdit eventuale sezione che Client sta editando
      * @return SUCCESS se comando e' sintaticamente corretto
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkEmptyARGRequest(String[] commandWords, String correctCommandToPrint, CommandType commandType,
-                                                 String documentToEdit){
+                                                 String documentToEdit, int sectionToEdit){
         if(commandWords.length != 2){ //dopo richiesta ci sono parole/argomenti
             System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
             System.out.println("[Turing] >> turing " + correctCommandToPrint);
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-            return readAndParseCommand(documentToEdit);
+            return readAndParseCommand(documentToEdit, sectionToEdit);
         }
         else{ //comando senza argomenti e' sintatticamente corretto
             setCurrentCommand(commandType);
@@ -428,17 +366,18 @@ public class ClientCommandLineManagement {
      * @param correctCommandToPrint messaggio personalizzato da stampare sullo schermo
      * @param commandType tipo di operazione richiesta
      * @param documentToEdit eventuale documento che Client sta editando
+     * @param sectionToEdit eventuale sezione che Client sta editando
      * @return SUCCESS se comando e' sintaticamente corretto
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkOneARGRequest(String[] commandWords, String correctCommandToPrint, CommandType commandType,
-                                               String documentToEdit){
+                                               String documentToEdit, int sectionToEdit){
         //verifico se esiste documento da mostrare
         if(commandWords.length != 3) { //non esiste documento
             System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
             System.out.println("[Turing] >> turing " + correctCommandToPrint);
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-            return readAndParseCommand(documentToEdit);
+            return readAndParseCommand(documentToEdit, sectionToEdit);
         }
         else{ //commando con 1 argomento e' sintatticamente corretto
             setCurrentCommand(commandType);
@@ -454,17 +393,18 @@ public class ClientCommandLineManagement {
      * @param correctCommandToPrint messaggio personalizzato da stampare sullo schermo
      * @param commandType tipo di operazione richiesta dal Client
      * @param documentToEdit evenuale documento che Client sta editando
+     * @param sectionToEdit eventuale sezione che Client sta editando
      * @return SUCCESS se comando e' sintaticamente corretto
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkSendMessage(String[] commandWords, String correctCommandToPrint, CommandType commandType,
-                                             String documentToEdit){
+                                             String documentToEdit, int sectionToEdit){
         //verifico se esiste msg da inviare
         if(commandWords.length == 2) { //non esiste msg
             System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
             System.out.println("[Turing] >> turing " + correctCommandToPrint);
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-            return readAndParseCommand(documentToEdit);
+            return readAndParseCommand(documentToEdit, sectionToEdit);
         }
         else{ //esiste messaggio
 
@@ -497,17 +437,18 @@ public class ClientCommandLineManagement {
      * @param correctCommandToPrint messaggio personalizzato da stampare sullo schermo
      * @param commandType tipo di richiesta, per discrimare controllo degli argomenti da fare
      * @param documentToEdit eventuale documento che Client sta editando
+     * @param sectionToEdit eventuale sezione che Client sta editando
      * @return SUCCESS se comando e' sintaticamente corretto
      *         FAILURE altrimenti
      */
     private FunctionOutcome checkTwoARGSRequest(String[] commandWords, String correctCommandToPrint, CommandType commandType,
-                                                String documentToEdit){
+                                                String documentToEdit, int sectionToEdit){
         //verifico se esiste documento da mostrare / msg da inviare
         if(commandWords.length != 4) { //esiste msg
             System.err.println("[Turing] >> Comando scoretto. Forse intendevi:");
             System.out.println("[Turing] >> turing " + correctCommandToPrint);
             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-            return readAndParseCommand(documentToEdit);
+            return readAndParseCommand(documentToEdit, sectionToEdit);
         }
         else{
             //verifico che i 2 argomenti non superino il numero di caratteri / sezioni del file di configurazione
@@ -519,7 +460,7 @@ public class ClientCommandLineManagement {
                     if(!checkIfNumSectionIsNumeric(commandWords[3])){ //num. sezione non e' un valore numerico
                         System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere un valore numerico positivo:");
                         System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-                        return readAndParseCommand(documentToEdit);
+                        return readAndParseCommand(documentToEdit, sectionToEdit);
                     }
                     else{
                         //verifico che numero sezione sia strettamente positivo
@@ -527,7 +468,7 @@ public class ClientCommandLineManagement {
                         if(check == FunctionOutcome.FAILURE){
                             System.err.println("[Turing] >> Comando scoretto. Il secondo argomento deve essere strettamente positivo:");
                             System.out.println("[Turing] >> Digita nuovamente il comando, per favore:");
-                            return readAndParseCommand(documentToEdit);
+                            return readAndParseCommand(documentToEdit, sectionToEdit);
                         }
                     }
                 }

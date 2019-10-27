@@ -1,8 +1,8 @@
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 
 public class ClientMessageManagement {
     /**
@@ -307,17 +307,17 @@ public class ClientMessageManagement {
         String fileContent = fileManagement.readFile(sectionName);
 
         //invio richiesta al Server
-        FunctionOutcome check = writeRequest(currentCommand, fileContent, "");
+        FunctionOutcome check = writeRequest(CommandType.SECTION_IS_COMING, fileContent, "");
 
         if(check == FunctionOutcome.FAILURE){
             return FunctionOutcome.FAILURE;  //segnalo fallimento al Client
         }
 
         //cancello sezione dalla cartella di editing
-        fileManagement.deleteFile(sectionName);
+        //fileManagement.deleteFile(sectionName);
 
         //cancello documento che conteneva sezione da editare
-        fileManagement.deleteDirectory(documentDirectory);
+        //fileManagement.deleteDirectory(documentDirectory);
 
         //attendo risposta di esito dal Server
         return readResponse(currentUser);
@@ -347,7 +347,7 @@ public class ClientMessageManagement {
             case OP_OK:{  //discrimino quale operazione ha avuto successo
                 switch (this.currentCommand){
                     case LOGIN:{
-                        System.out.println(String.format("[%s] >> Login avvenuto con successo", currentUser));
+                        System.out.println(String.format("[%s] >> Login avvenuto con successo", currentArg1));
                         break;
                     }
                     case LOGOUT:{
@@ -509,7 +509,10 @@ public class ClientMessageManagement {
                         System.out.println(responseBody);
                         break;
                     }
-                    case SEND:
+                    case SEND:{
+                        System.out.println(String.format("[%s] >> Messaggio inviato correttamente sulla chat", currentUser));
+                        break;
+                    }
                     case I_AM_CLIENT_SOCKET:
                     case I_AM_INVITE_SOCKET:{
                         //System.out.println(String.format("[Turing] >> %s eseguito corretamente", currentCommand));
@@ -538,7 +541,9 @@ public class ClientMessageManagement {
 
                 //attivo chatListener
                 this.clientChatListenerThread.start();
-                return FunctionOutcome.SUCCESS; //notifico alla EDIT che creazione del chatListener ha avuto successo
+
+                //attendo acknowledgment dell'invio, da parte del Server, del welcome message
+                return readResponse(currentUser);
             }
             case OP_WHO_IS_EDITING:{
                 return FunctionOutcome.SUCCESS; //notifico alla SHOW_DOC / SHOW_SECTION lettura di chi sta editando
@@ -546,12 +551,15 @@ public class ClientMessageManagement {
             case OP_SERVER_READY_FOR_UPDATE:{
                 return sendUpdateSection(currentUser, currentArg1, currentArg2);
             }
+            case OP_WELCOME_MESSAGE_SEND:{
+                return FunctionOutcome.SUCCESS; //segnalo al Client che edit ha avuto successo
+            }
             case OP_USER_NOT_ONLINE:{
                 System.err.println("[ERR] >> Utente NON connesso.");
                 break;
             }
             case OP_USER_NOT_REGISTERED:{
-                System.err.println(String.format("[ERR] >> Utente |%s| NON registrato.", currentUser));
+                System.err.println(String.format("[ERR] >> Utente |%s| NON registrato.", currentArg1));
                 break;
             }
             case OP_DOCUMENT_NOT_EXIST:{
@@ -559,7 +567,7 @@ public class ClientMessageManagement {
                 break;
             }
             case OP_DOCUMENT_PERMISSION_DENIED:{
-                System.err.println(String.format("[ERR] >> Non hai i permessi per fare il download del documento |%s|" +
+                System.err.println(String.format("[ERR] >> Non hai i permessi per accedere al documento |%s|" +
                         ".", currentArg1));
                 break;
             }
@@ -569,7 +577,8 @@ public class ClientMessageManagement {
                 break;
             }
             case OP_USER_ALREADY_ONLINE:{
-                System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso.", currentUser));
+                System.err.println(String.format("[ERR] >> Username |%s| GIA' connesso con un altro Client." +
+                        " Sloggarsi dall'altro Client o continuare su quello.", currentArg1));
                 break;
             }
             case OP_PASSWORD_INCORRECT:{
@@ -617,16 +626,15 @@ public class ClientMessageManagement {
             }
             case OP_SECTION_EDITED_BY_SOMEONE_ELSE:{
                 System.err.println(String.format("[ERR] >> Non puoi finire di fare l'editing della sezione|%s| del documento|%s|."
-                        + "Sezione non e' editata da te.", currentArg2, currentArg1));
+                        + "Sezione e' editata da |%s|.", currentArg2, currentArg1, getBodyMessage()));
                 break;
             }
             case OP_DOCUMENT_MULTICAST_ADDRESS_RUN_OUT:{
                 System.err.println("[ERR] >> Indirizzi di multicast esauriti.");
                 break;
             }
-            case OP_DOCUMENT_ALREADY_EDIT_BY_USER:{
-                System.err.println(String.format("[ERR] >> Stai gia' editando una sezione del documento |%s|." +
-                        " Non puoi editare piu' sezioni dello stesso documento alla volta.", this.currentArg1));
+            case OP_USER_IS_ALREADY_EDITING_SOMETHING:{
+                System.err.println("[ERR] >> " + getBodyMessage());
                 break;
             }
             case  OP_SECTION_IMPOSSIBLE_TO_UPDATE:{
@@ -653,8 +661,8 @@ public class ClientMessageManagement {
                 break;
             }
             case OP_DOCUMENT_INAVLID_CHARACTERS:{
-                System.err.println(String.format("[ERR] >> Documento |%s| contiene caratteri speciali. Sceglierne" +
-                        " uno che non li contenga.", currentArg1));
+                System.err.println(String.format("[ERR] >> Nome documento |%s| NON valido. Il nome utente non puo' contentere" +
+                        ": ['\\\\', '/', ':', '*', '?', '\"', '<', '>', '|']", this.currentArg1));
                 break;
             }
             case OP_USER_MUST_LOGOUT:{

@@ -3,9 +3,19 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class TuringServer {
-    private static String defaultConfFile = "/src/data/turingServer.conf";
+    /**
+     * path relativo del file di configurazione del Server
+     */
+    private static String defaultConfFile = "/data/turingServer.conf";
+    //private static String defaultConfFile = "/src/data/turingServer.conf";
+    /**
+     * classe che si occupa di fare il parsing del file di configurazione e memorizzarne i valori
+     */
     private static ServerConfigurationsManagement configurationsManagement = new ServerConfigurationsManagement();
 
+    /**
+     * Ciclo di attivazione del Server
+     */
     public static void main(String[] args){
         System.out.println("[Turing] >> SERVER TURING (disTribUted collaboRative edItiNG) AVVIATO");
         System.out.println();
@@ -24,6 +34,12 @@ public class TuringServer {
             }
         }
         else { //non  e' stato inserito nessun file di configurazione come argomento => parso quello di default
+
+            //mi costruisco il path assoluto del file di configurazione
+            FileManagement fileManagement = new FileManagement();
+            String currentPath = fileManagement.getCurrentPath();
+            defaultConfFile =  currentPath + defaultConfFile;
+
             FunctionOutcome parse = configurationsManagement.parseConf(defaultConfFile);
 
             if(parse == FunctionOutcome.FAILURE){
@@ -32,7 +48,7 @@ public class TuringServer {
             }
 
             System.out.println("[Turing] >> Il server è stato eseguito con le configurazioni di default");
-            System.out.println("[Turing] >> Se desidi personalizzare le configuarzioni, riesegui il codice inserendo tra gli argomenti il tuo file");
+            System.out.println("[Turing] >> Se desideri personalizzare le configuarzioni, riesegui il codice inserendo tra gli argomenti il tuo file");
             System.out.println("[Turing] >> Per maggiori dettagli sul formato delle configurazioni, guardare il file <./data/turingServer.conf>");
         }
 
@@ -82,7 +98,7 @@ public class TuringServer {
         //3. si fanno terminare tutti gli Workers e il Listener Thread
         //Per fare questo segnalo alla JVM che deve invocare il mio thread ShutDownHook come ultima istanza prima
         //di terminare il programma
-        Runtime.getRuntime().addShutdownHook(new ServerShutdownHook(thread, threadPool));
+        Runtime.getRuntime().addShutdownHook(new ServerShutdownHook(thread, threadPool, configurationsManagement));
 
         System.out.println("[Turing] >> ShutdownHook creato con successo");
     }

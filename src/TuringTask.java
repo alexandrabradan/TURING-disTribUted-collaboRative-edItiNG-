@@ -6,8 +6,13 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
 
 public class TuringTask {
     /**
@@ -171,29 +176,55 @@ public class TuringTask {
     }
 
     /**
-     * Funzione privata chiamata da "logoutTask" che si occupa di liberare le eventuali sezioni
-     * acquisite dal Client
+     * Funzione  che si occupa di liberare le eventuali sezioni acquisite dal Client
      * @param username nome dell'utente di cui si e' fato il logout
      */
-    private void freeAcquiredSections(String username){
-        //verifico se il Client ha acquisito mutua sezione su qualche sezione e la rilascio, in caso affermativo
-        //AVENDO TOLTO CLIENT DAI CONNESSI => INVITI A COLLABORARE A NUOVI DOCUMENTI VANNO NEI PENDING_INVITES
-        // => NUOVI DOCUMENTI INSERITI NELL'INSIEME DEI DOCUMENTI DELL'UTENTE QUANDO FA LOGIN => insieme consistente
-        //itero sull'insieme dei documenti del Client
+    public void freeAcquiredSections(String username){
+        //verifico se il Client ha acquisito mutua sezione su una sezione di qualche documenti e la rilascio
+        //AVENDO TOLTO CLIENT DAI CONNESSI => ISTANZA DELL'UTENTE E' CONSISTENTE + ACCESSO ALL-ISTANZA
+        //DEL DOCUMENTO AVVIENE TRAMITE METODO "synchronized"
         User usr = this.serverDataStructures.getUserFromHash(username); //recupero istanza dell'utente
-        Set<String> usrDocs =  usr.getSetDocs(); //recupero insieme documenti dell'utente
-        for(String document: usrDocs){
+        //recupero eventuale documento e sezione editate
+        Object[] documentAndSectionEdited = usr.getDocumentAndSectionEditetd();
+        String document = (String) documentAndSectionEdited[0]; //recupero eventuale documento editato
+        int section = (int) documentAndSectionEdited[1]; //recupero eventuale sezione editata
+
+        if(!document.isEmpty() && section > 0){ //utente stava editando un docmento
             Document doc = this.serverDataStructures.getDocumentFromHash(document); //recupero istanza del documento
-            //itero sull'array di lock per verificare se Client ne ha acquisita qualcuna
+            doc.unlockSection(section, username); //rilascio mutua esclusione
 
-            //NON MI INTERESSA CONSISTENZA (devo solo trovare slots eventualmente occupati dal clientSocket)
+            usr.setDocumentAndSectionEditetd("", -1); //resetto documento e sezione editata dall'utente
 
-            String[] sectionsLockArray = doc.getSectionsLockArray();
-            for(int i = 0; i < sectionsLockArray.length; i++){
-                if(sectionsLockArray[i].equals(username)){
-                    //libero sezione
-                    doc.unlockSection(i + 1, username); //loop parte da 0, conteggio sezioni da 1
+
+            //notifico agli altri utenti della chat che tale utente si e' disconesso => invio bye messagge
+            Calendar cal = Calendar.getInstance();         //ricavo tempo
+            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+            String time = sdf.format(cal.getTime());
+
+            //messaggio da inviare in multicast per dire che utente ha iniziato a modificare una sezione
+            String bye = "    |" + time + "| " + "DISCONESSIONE DI: " + username;
+
+            //recupero l'indirizzo di multicast del documento
+            String multicastInd = doc.getChatInd();
+
+            try {
+                InetAddress group = InetAddress.getByName(multicastInd);
+                MulticastSocket chatSocket = new MulticastSocket(this.configurationsManagement.getMulticastPort());
+
+                //acquisisco mutua esclusione sul DatagramSocket
+                synchronized (doc.getLockChatSocket()){
+                    //ricavo byte del messaggio specificato
+                    byte[] buf = bye.getBytes();
+                    //creo DatagramPacket corrispondente
+                    DatagramPacket packet = new DatagramPacket(buf, buf.length, group, this.configurationsManagement.getMulticastPort());
+
+                    //invio sul Socket multicast il messaggio (inserito in un datagramPacket)
+                    chatSocket.send(packet);
                 }
+
+            } catch (IOException ex) {
+                //ex.printStackTrace();
+                //anche se non inviato il bye-message il documento è libero
             }
         }
     }
@@ -407,17 +438,26 @@ public class TuringTask {
         try {
             randomAccessFile = new RandomAccessFile(userSectionFile, "rw");
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println(String.format("[ERR] >> Impossibile aprire il file |%s| tramite RandomAccessFile",
+                    userSectionFile));
             System.exit(-1);
         }
 
-        FileChannel outChannel = randomAccessFile.getChannel(); //ricavo channel del file
 
         //FileLock => mutua esclusione sul file con JavaNIO
-        try (outChannel; FileLock fileLock = outChannel.lock()) {
+        try (FileChannel outChannel = randomAccessFile.getChannel();
+             FileLock fileLock = outChannel.lock();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-            FileManagement fileManagement = new FileManagement();
-            content = fileManagement.readFile(userSectionFile);
+            int bufferSize = (int) outChannel.size();
+            ByteBuffer buff = ByteBuffer.allocate(bufferSize);
+
+            while (outChannel.read(buff) > 0) {
+                out.write(buff.array(), 0, buff.position());
+                buff.clear();
+            }
+            content =  new String(out.toByteArray(), StandardCharsets.UTF_8);
 
             //rilascio mutua esclusione sul file/sezione
             fileLock.release();
@@ -701,21 +741,30 @@ public class TuringTask {
         }
 
         //verifico che utente non stia gia' editando una sezione di questo documento
-        //NON MI INTERESSA CONSISTENZA (devo solo trovare slots eventualmente occupati dal clientSocket)
+        //recupero istanza dell'utente
+        User usr = this.serverDataStructures.getUserFromHash(username);
+        //recupero eventuale documento editato dal Client
+        Object[] documentAndSectionEdited = usr.getDocumentAndSectionEditetd();
+        String d = (String) documentAndSectionEdited[0]; //recupero eventuale documento editato
+        int s = (int) documentAndSectionEdited[1]; //recupero eventuale sezione editata
 
-        String[] sectionsLockArray = doc.getSectionsLockArray();
-        for(int i = 0; i < sectionsLockArray.length; i++){
-            if(sectionsLockArray[i].equals(username)){
-                return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_ALREADY_EDIT_BY_USER, "");
-            }
+        if(!d.isEmpty() && s > 0){ //utente sta gia' editando un documento
+            String msg = String.format("|%s|, stai  gia' modificando la sezione |%s| del documento |%s|", username, s,  d);
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_USER_IS_ALREADY_EDITING_SOMETHING, msg);
         }
 
         //documento non e' editato dall'utente
+        //mi segno quale documento l'utente sta editando
+        usr.setDocumentAndSectionEditetd(document, numSection);
+
         //provo ad acquisire la mutua esclusione sulla sezione che utente vuole editare
         String lock = doc.lockSection(numSection, username);
 
-        if(!lock.equals(username)) //sezione acquisita gia' da qualcunaltro => invio nome di chi l'ha gia' acquisita
+        //sezione acquisita gia' da qualcunaltro => invio nome di chi l'ha gia' acquisita
+        if(!lock.equals(username)) {
+            usr.setDocumentAndSectionEditetd("", -1); //mi segno che non sto editando sezione
             return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_ALREADY_IN_EDITING_MODE, lock);
+        }
 
         //sezione acquisita
         FunctionOutcome check = this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
@@ -732,7 +781,41 @@ public class TuringTask {
         //se invio sezione ha avuto successo, devo inviare al Client l'indirizzo di multicast del documento
         //per consentirgli di attivare chatListener
         String multicastInd = doc.getChatInd();
-        return this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_MULTICAST_IND_IS_COMING, multicastInd);
+        check = this.serverMessageManagement.writeResponse(ServerResponse.OP_DOCUMENT_MULTICAST_IND_IS_COMING, multicastInd);
+
+        if(check == FunctionOutcome.FAILURE)
+            return FunctionOutcome.FAILURE;
+
+        //notifico agli altri utenti della chat che tale utente si e' connesso => invio welcome messagge
+        Calendar cal = Calendar.getInstance();         //ricavo tempo
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+        String time = sdf.format(cal.getTime());
+
+        //messaggio da inviare in multicast per dire che utente ha iniziato a modificare una sezione
+        String welcome = "    |" + time + "| " + "CONNESSIONE DI: " + username;
+
+        try {
+            InetAddress group = InetAddress.getByName(multicastInd);
+            MulticastSocket chatSocket = new MulticastSocket(this.configurationsManagement.getMulticastPort());
+
+            //acquisisco mutua esclusione sul DatagramSocket
+            synchronized (doc.getLockChatSocket()){
+                //ricavo byte del messaggio specificato
+                byte[] buf = welcome.getBytes();
+                //creo DatagramPacket corrispondente
+                DatagramPacket packet = new DatagramPacket(buf, buf.length, group, this.configurationsManagement.getMulticastPort());
+
+                //invio sul Socket multicast il messaggio (inserito in un datagramPacket)
+                chatSocket.send(packet);
+            }
+
+        } catch (IOException e) {
+            //e.printStackTrace();
+            //anche se non ho inviato welcome-message il documento e' comunque editabile
+            return this.serverMessageManagement.writeResponse(ServerResponse.OP_WELCOME_MESSAGE_SEND, "");
+        }
+
+        return this.serverMessageManagement.writeResponse(ServerResponse.OP_WELCOME_MESSAGE_SEND, "");
     }
 
     /**
@@ -761,17 +844,18 @@ public class TuringTask {
         try {
             randomAccessFile = new RandomAccessFile(userSectionFile, "rw");
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println(String.format("[ERR] >> Impossibile aprire il file |%s| tramite RandomAccessFile",
+                    userSectionFile));
             System.exit(-1);
         }
 
-        FileChannel outChannel = randomAccessFile.getChannel(); //ricavo channel del file
-
         //FileLock => mutua esclusione sul file con JavaNIO
-        try (outChannel; FileLock fileLock = outChannel.lock()) {
+        try (  FileChannel outChannel = randomAccessFile.getChannel();
+               FileLock fileLock = outChannel.lock()) {
 
-            FileManagement fileManagement = new FileManagement();
-            fileManagement.writeFile(userSectionFile, content);
+            ByteBuffer buff = ByteBuffer.wrap(content.getBytes(StandardCharsets.UTF_8));
+            outChannel.write(buff);
 
             //rilascio mutua esclusione sul file/sezione
             fileLock.release();
@@ -872,6 +956,42 @@ public class TuringTask {
         else if(serverResponse == ServerResponse.OP_SECTION_EDITED_BY_SOMEONE_ELSE)
             return this.serverMessageManagement.writeResponse(ServerResponse.OP_SECTION_EDITED_BY_SOMEONE_ELSE, "");
 
+        //recupero istanza dell'utente
+        User usr = this.serverDataStructures.getUserFromHash(username);
+        //mi segno che l'utente ha smesso di editare la sessione
+        usr.setDocumentAndSectionEditetd("", -1);
+
+        //notifico agli altri utenti della chat che tale utente si e' disconesso => invio bye messagge
+        Calendar cal = Calendar.getInstance();         //ricavo tempo
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+        String time = sdf.format(cal.getTime());
+
+        //messaggio da inviare in multicast per dire che utente ha iniziato a modificare una sezione
+        String bye = "    |" + time + "| " + "DISCONESSIONE DI: " + username;
+
+        //recupero l'indirizzo di multicast del documento
+        String multicastInd = doc.getChatInd();
+
+        try {
+            InetAddress group = InetAddress.getByName(multicastInd);
+            MulticastSocket chatSocket = new MulticastSocket(this.configurationsManagement.getMulticastPort());
+
+            //acquisisco mutua esclusione sul DatagramSocket
+            synchronized (doc.getLockChatSocket()){
+                //ricavo byte del messaggio specificato
+                byte[] buf = bye.getBytes();
+                //creo DatagramPacket corrispondente
+                DatagramPacket packet = new DatagramPacket(buf, buf.length, group, this.configurationsManagement.getMulticastPort());
+
+                //invio sul Socket multicast il messaggio (inserito in un datagramPacket)
+                chatSocket.send(packet);
+            }
+
+        } catch (IOException e) {
+            //e.printStackTrace();
+            //anche se non ho inviato bye-message il documento e' comunque libero;
+        }
+
         //sezione rilasciata
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }
@@ -906,13 +1026,16 @@ public class TuringTask {
             InetAddress group = InetAddress.getByName(multicastInd);
             MulticastSocket chatSocket = new MulticastSocket(this.configurationsManagement.getMulticastPort());
 
-            //ricavo byte del messaggio specificato
-            byte[] buf = message.getBytes();
-            //creo DatagramPacket corrispondente
-            DatagramPacket packet = new DatagramPacket(buf, buf.length, group, this.configurationsManagement.getMulticastPort());
+            //acquisisco mutua esclusione sul DatagramSocket
+            synchronized (doc.getLockChatSocket()){
+                //ricavo byte del messaggio specificato
+                byte[] buf = message.getBytes();
+                //creo DatagramPacket corrispondente
+                DatagramPacket packet = new DatagramPacket(buf, buf.length, group, this.configurationsManagement.getMulticastPort());
 
-            //invio sul Socket multicast il messaggio (inserito in un datagramPacket)
-            chatSocket.send(packet);
+                //invio sul Socket multicast il messaggio (inserito in un datagramPacket)
+                chatSocket.send(packet);
+            }
 
         } catch (IOException e) {
             //e.printStackTrace();
@@ -928,7 +1051,7 @@ public class TuringTask {
         try {
             hostAndPort = this.client.getRemoteAddress().toString();
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             return FunctionOutcome.FAILURE; //notifico al Worker fallimento inserimento
         }
 
@@ -949,8 +1072,6 @@ public class TuringTask {
      */
     public FunctionOutcome iAmAnInvitesSocketTask(String hostAndPort){
 
-        this.serverDataStructures.printSocketNames();
-
         //verifico quale clientSocketChannel corrisponde al nome del Socket del Client
         SocketChannel clientSocketChannel = this.serverDataStructures.searchHashSocketNames(hostAndPort);
 
@@ -963,6 +1084,12 @@ public class TuringTask {
         //ho reperito clientSocketChannel di cui questo SocketChannel e' canale di invio => inserisco associazione
         //tra i due nella ht corrispondente
         this.serverDataStructures.insertHashInvites(clientSocketChannel, this.client);
+
+        //elimino associazione tra nome Socket e clientSocketChannel
+        this.serverDataStructures.removeHashSocketNames(hostAndPort);
+
+        //mi segno che canale deve essere rimosso dal selettore
+        this.serverDataStructures.addSelectorKeysToDelete(this.client);
 
         return this.serverMessageManagement.writeResponse(ServerResponse.OP_OK, "");
     }

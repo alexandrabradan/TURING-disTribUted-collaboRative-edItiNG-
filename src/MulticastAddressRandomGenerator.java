@@ -1,7 +1,4 @@
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.LinkedHashSet;
-import java.util.LinkedList;
 import java.util.Random;
 
 public class MulticastAddressRandomGenerator {

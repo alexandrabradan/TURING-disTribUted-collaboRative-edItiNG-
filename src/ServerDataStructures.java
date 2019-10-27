@@ -36,7 +36,16 @@ public class ServerDataStructures {
      */
     private BlockingQueue<SocketChannel> selectorKeysToReinsert;
 
+    /**
+     * insieme che contiene i channels da eliminare dal selettore dato che si tratta di channels
+     * usati solo per inviare inviti
+     */
+    private BlockingQueue<SocketChannel> selectorKeysToDelete;
 
+
+    /**
+     * Costruttore della classe ServerDataStructures
+     */
     public ServerDataStructures(){
         //*************************************ALLOCAZIONE STRUTTURE DATI*********************************************//
         this.online_users = new ConcurrentHashMap<>();
@@ -46,6 +55,7 @@ public class ServerDataStructures {
         this.hash_socket_names = new ConcurrentHashMap<>();
         this.hash_invites = new ConcurrentHashMap<>();
         this.selectorKeysToReinsert = new LinkedBlockingQueue<>();
+        this.selectorKeysToDelete = new LinkedBlockingQueue<>();
     }
 
     //***********************************************METODI GETTER****************************************************//
@@ -58,6 +68,13 @@ public class ServerDataStructures {
     public BlockingQueue<SocketChannel> getSelectorKeysToReinsert(){
         return this.selectorKeysToReinsert;
     }
+
+    /**
+     * Funzione che restituisce l'insieme dei canali da eliminare dal selettore, dato che si tratta di canali di
+     * invio inviti
+     * @return this.selectorKeysToDelete
+     */
+    public BlockingQueue<SocketChannel> getSelectorKeysToDelete(){return this.selectorKeysToDelete;};
 
     //********************************METODI PER GESTIRE INSIEME UTENTI ONLINE***************************************//
 
@@ -183,19 +200,18 @@ public class ServerDataStructures {
     /**
      * 1. inserisco documento nell'insieme dei documenti che utente puo' modificare
      * 2. inserisco utente nell'insieme dei modificatori del documento (se non e' creatore)
-     * Questi step vengono fatti in MUTUA ESCLUSIONE per garantire CONSITENZA tra ht utenti e ht documenti
      * @param username nome dell'utente
      * @param document nome del documento
      * @param isCreator flag che specifica se l'utente e' creatore o meno del documento
      */
-    public synchronized void validateUserAsModifier(String username, String document, boolean isCreator){
-        User user = getUserFromHash(username);
-        user.addSetDoc(document);
-
+    public void validateUserAsModifier(String username, String document, boolean isCreator){
         if(!isCreator){
             Document doc = getDocumentFromHash(document);
             doc.addUser(username);
         }
+
+        User user = getUserFromHash(username);
+        user.addSetDoc(document);
     }
 
     /**
@@ -438,5 +454,16 @@ public class ServerDataStructures {
      */
     public void addSelectorKeysToReinsert(SocketChannel client){
         this.selectorKeysToReinsert.add(client);
+    }
+
+    //**************************METODI PER GESTIRE INSIEME SOCKETS DA REINSERIRE NEL SELECTOR************************//
+
+    /**
+     * Funzione che inserisce un SocketChannel nell'insieme dei sockets da cancellare dal selettore,
+     * in quanto canele di invio inviti
+     * @param client socketchannel d'invito da eliminare
+     */
+    public void addSelectorKeysToDelete(SocketChannel client){
+        this.selectorKeysToDelete.add(client);
     }
 }

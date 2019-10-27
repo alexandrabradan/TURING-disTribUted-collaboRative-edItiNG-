@@ -3,6 +3,7 @@ import java.net.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class ClientChatListener extends Thread {
@@ -43,7 +44,8 @@ public class ClientChatListener extends Thread {
             this.group = InetAddress.getByName(multicastInd);
             this.chatSocket = new MulticastSocket(this.clientConfigurationManagement.getMulticastPort());
         } catch (IOException e) {
-            e.printStackTrace();
+            //
+            System.err.println("[ERR] >> Impossibile aprire il chatSocket");
             System.exit(-1);
         }
 
@@ -56,6 +58,7 @@ public class ClientChatListener extends Thread {
         StringBuilder msgs = new StringBuilder();
 
         while(!history.isEmpty()){
+
             String msg = history.remove(); //rimuovo primo elemento dalla History
             //appendo messaggio al mio msg parziale
             msgs.append(msg);
@@ -75,22 +78,6 @@ public class ClientChatListener extends Thread {
     public void run(){
 
         try{
-            //ricavo tempo
-            Calendar cal = Calendar.getInstance();
-            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-            String time = sdf.format(cal.getTime());
-
-            //messaggio da inviare in multicast per dire che utente ha iniziato a modificare una sezione
-            String welcome = "    |" + time + "| " + "CONNESSIONE DI: " + currentUser;
-
-            //ricavo byte del messaggio specificato
-            byte[] bufWelcome = welcome.getBytes();
-            //creo DatagramPacket corrispondente
-            DatagramPacket packet = new DatagramPacket(bufWelcome, bufWelcome.length, this.group,
-                                                        this.clientConfigurationManagement.getMulticastPort());
-            //invio sul Socket multicast il messaggio (inserito in un datagramPacket)
-            this.chatSocket.send(packet);
-
             //setto il timeout (tempo di attesa del messaggio) x per non aspettare in eterno arrivo di un pacchetto
             // ed accorgermi eventualmente della richiesta di terminazione del Client
             chatSocket.setSoTimeout(this.clientConfigurationManagement.getConnectionTimeout());
@@ -99,7 +86,8 @@ public class ClientChatListener extends Thread {
             //mi unisco al Gruppo per ricevere i messaggi della chat
             this.chatSocket.joinGroup(group);
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println("[ERR] >> Errore nel timer oppure nella joinGroup ");
             System.exit(-1);
         }
 
@@ -133,7 +121,8 @@ public class ClientChatListener extends Thread {
             this.chatSocket.leaveGroup(group);
             this.chatSocket.close();  //chiudo socket inviti
         } catch (IOException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.err.println("[ERR] >> Impossibile chiude chatSocket");
             System.exit(-1);
         }
     }

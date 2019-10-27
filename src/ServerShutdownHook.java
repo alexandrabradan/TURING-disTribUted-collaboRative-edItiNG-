@@ -1,12 +1,29 @@
 import java.util.concurrent.ThreadPoolExecutor;
 
 public class ServerShutdownHook extends Thread{
+    /**
+     * riferimento al thread TuringListener per farvi la join
+     */
     private Thread listenerThreadID;
+    /**
+     * riferimento al ThreadPool
+     */
     private ThreadPoolExecutor threadPoolExecutor;
+    /**
+     * Classe che raccoglie le variabili di configutrazione del Server
+     */
+    private ServerConfigurationsManagement serverConfigurationsManagement;
 
-    public ServerShutdownHook(Thread listenerThreadID, ThreadPoolExecutor threadPoolExecutor){
+    /**
+     * Costruttore della classe ServerShutdownHook
+     * @param listenerThreadID listenerThreadID
+     * @param threadPoolExecutor threadPoolExecutor
+     */
+    public ServerShutdownHook(Thread listenerThreadID, ThreadPoolExecutor threadPoolExecutor,
+                              ServerConfigurationsManagement serverConfigurationsManagement){
         this.listenerThreadID = listenerThreadID;
         this.threadPoolExecutor = threadPoolExecutor;
+        this.serverConfigurationsManagement = serverConfigurationsManagement;
     }
 
     /**
@@ -28,13 +45,18 @@ public class ServerShutdownHook extends Thread{
 
         System.out.println("[Turing] >> ThreadPool terminato");
 
+        //cancello cartelle dal database
+        this.serverConfigurationsManagement.deallocateServerConf();
+
+        System.out.println("[Turing] >> Database svuotato");
+
         //interrompo TuringListener (se non gia' interroto)
         this.listenerThreadID.interrupt();
 
         try {
             this.listenerThreadID.join();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             System.exit(-1);
         }
 

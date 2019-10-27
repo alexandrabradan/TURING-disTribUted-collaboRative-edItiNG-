@@ -56,9 +56,10 @@ public class ClientShutdownHook extends Thread{
 
                 this.clientSocket.close();
                 System.out.println("[Turing] >> Client-socket chiuso");
+                System.out.println("--- TURING (disTribUted collaboRative edItiNG) a presto! ---");
 
             } catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
                 System.err.println("[ERR] >> Impossibile chiudere client-socket");
                 System.exit(-1);
             }

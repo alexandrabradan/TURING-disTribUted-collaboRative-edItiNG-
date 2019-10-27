@@ -7,14 +7,39 @@ import java.util.List;
 
 public class ServerConfigurationsManagement {
 
-    private String serverHost; //DNS name server
-    private int serverPort; //porta su cui Server e' in ascolto
-    private int RMIPort; //porta utilizzata per gli inviti
-    private int multicastPort; //porta utilizzata per i gruppi di chat
-    private int connectionTimeout; //tempo attesa multicast
-    private int numWorkersInThreadPool; //numero di threads nel ThreadPool
-    private String serverSaveDocumentsDirectory; //path della directory dove Server salva documenti dei Clients
+    /**
+     * DNS name server
+     */
+    private String serverHost;
+    /**
+     * porta su cui Server e' in ascolto
+     */
+    private int serverPort;
+    /**
+     * porta utilizzata per gli inviti
+     */
+    private int RMIPort;
+    /**
+     * porta utilizzata per i gruppi di chat
+     */
+    private int multicastPort;
+    /**
+     * tempo attesa multicast
+     */
+    private int connectionTimeout;
+    /**
+     * numero di threads nel ThreadPool
+     */
+    private int numWorkersInThreadPool;
+    /**
+     * path della directory dove Server salva documenti dei Clients
+     */
+    private String serverSaveDocumentsDirectory;
 
+
+    /**
+     * Classe che si occupa di gestire le operazioni sui files
+     */
     private FileManagement fileManagement = new FileManagement();
     private String currentPath = fileManagement.getCurrentPath();
 
@@ -95,7 +120,7 @@ public class ServerConfigurationsManagement {
      */
     public FunctionOutcome parseConf(String confFile){
 
-        confFile = currentPath + confFile;
+        //confFile = currentPath + confFile;
 
         //verifico se il file passato come paramentro esiste
         boolean exist = this.fileManagement.checkEsistenceFile(confFile);
@@ -144,7 +169,8 @@ public class ServerConfigurationsManagement {
                            this.numWorkersInThreadPool = Integer.parseInt(value);
                            break;
                        case "serverSaveDocumentsDirectory":
-                           value = currentPath + "/src" + value;
+                           value = currentPath + value;
+                           //value = currentPath + "/src" + value;
                            this.serverSaveDocumentsDirectory = value;
                            break;
                        default:
@@ -153,7 +179,7 @@ public class ServerConfigurationsManagement {
                }
             }
         } catch (IOException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
                 System.err.println("[ERR] >> Errore nel leggere file di configurazione = " + confFile);
                 return FunctionOutcome.FAILURE;
         }
@@ -216,11 +242,6 @@ public class ServerConfigurationsManagement {
      *         FAILURE se la creazione di una cartella oppure lo svuotamento di una di esse non ha avuto successo
      */
     public FunctionOutcome allocateConf(){
-        boolean exist = this.fileManagement.checkEsistenceDirectory(this.serverSaveDocumentsDirectory);
-
-        if(exist){
-            this.fileManagement.deleteDirectory(this.serverSaveDocumentsDirectory);
-        }
         FunctionOutcome check1 = this.fileManagement.createDirectory(this.serverSaveDocumentsDirectory);
 
         if(check1 == FunctionOutcome.FAILURE){
@@ -229,6 +250,14 @@ public class ServerConfigurationsManagement {
         }
 
         return FunctionOutcome.SUCCESS; //creazione/svuotamento 2 cartelle andato a buon fine
+    }
+
+    /**
+     * Funzione che si occupa di cancellare la cartella del Server
+     */
+    public void deallocateServerConf(){
+        fileManagement.deleteDirectory(this.serverSaveDocumentsDirectory);
+        this.fileManagement.createDirectory(this.serverSaveDocumentsDirectory);
     }
 
     /**
