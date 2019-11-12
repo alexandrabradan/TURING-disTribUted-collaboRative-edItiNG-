@@ -180,8 +180,8 @@ public class ClientConfigurationManagement {
                             break;
                         case "maxNumSectionsPerDocument":
                         case "clientsDownloadsDocumentsDirectory":
-                            value = currentPath + value;
-                            //value = currentPath + "/src" + value;
+                            //value = currentPath + value;
+                            value = currentPath + "/src" + value;
                             this.clientsDownloadsDocumentsDirectory = value;
                             break;
                         case "clientsEditDocumentsDirectory":

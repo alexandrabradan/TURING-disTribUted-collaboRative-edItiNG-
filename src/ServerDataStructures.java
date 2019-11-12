@@ -137,7 +137,8 @@ public class ServerDataStructures {
      */
     public FunctionOutcome putToOnlineUsers(SocketChannel client, String username) {
         //aggiungo SocketChannel dell'utente e l'utente nella ht degli utenti online
-        String usernameToCheck = online_users.put(client, username);
+        //(MUTUA ESCLUSIONE SULLA HASHTABLE DATA DAL METODO putIfAbsent)
+        String usernameToCheck = online_users.putIfAbsent(client, username);
 
         if(usernameToCheck == null)
             return FunctionOutcome.SUCCESS; //utente connesso (non era presente)
@@ -314,7 +315,8 @@ public class ServerDataStructures {
      */
     public FunctionOutcome insertHashUser(String username, User usr) {
 
-        User userToCheck = this.hash_users.put(username, usr);
+        //(MUTUA ESCLUSIONE SULLA HASHTABLE DATA DAL METODO putIfAbsent)
+        User userToCheck = this.hash_users.putIfAbsent(username, usr);
         if(userToCheck == null)
             return FunctionOutcome.SUCCESS; //username inserito con successo (non era presente)
         else return FunctionOutcome.FAILURE; //username gia' presente
@@ -360,7 +362,8 @@ public class ServerDataStructures {
      */
     public FunctionOutcome insertHashDocument(String document, Document doc) {
 
-        Document valueToCheck = this.hash_documents.put(document, doc);
+        //(MUTUA ESCLUSIONE SULLA HASHTABLE DATA DAL METODO putIfAbsent)
+        Document valueToCheck = this.hash_documents.putIfAbsent(document, doc);
         if(valueToCheck == null)
             return FunctionOutcome.SUCCESS; //documento inserito (non esisteva)
         else return FunctionOutcome.FAILURE; //documento non inserito (esisteva gia')
